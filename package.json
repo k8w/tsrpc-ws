@@ -1,0 +1,32 @@
+{
+  "name": "tsrpc-ws",
+  "version": "0.0.1",
+  "description": "TSRPC WebSocket Version",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha",
+    "build": "rm -rf dist && tsc -d && cp package.json LICENSE README.md dist/ && find src/models -name *.d.ts | xargs cp --target-directory dist/src/models/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/k8w/tsrpc-ws.git"
+  },
+  "keywords": [
+    "k8w",
+    "ts",
+    "rpc",
+    "grpc",
+    "tsbuffer",
+    "fullstack",
+    "websocket",
+    "protobuf",
+    "socket.io"
+  ],
+  "author": "k8w",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "typescript": "^3.5.2"
+  },
+  "typings": "index.d.ts",
+  "dependencies": {}
+}
