@@ -7,11 +7,11 @@ import { TSBuffer } from 'tsbuffer';
 import * as fs from "fs";
 import * as path from "path";
 import { ApiCall, MsgCall } from './RPCCall';
-import { InputData } from '../proto/TransportData';
+import { ServerInputData } from '../proto/TransportData';
 
 /** 传输数据 编解码器 */
 const transportCoder = new TSBuffer({
-    "InputData": {
+    "ServerInputData": {
         "type": "Tuple",
         "elementTypes": [
             {
@@ -166,13 +166,13 @@ export class Server {
             }
         }
         else if (Buffer.isBuffer(data)) {
-            // 解码InputData
-            let decRes = this._tryDecode(transportCoder, data, 'InputData');
+            // 解码ServerInputData
+            let decRes = this._tryDecode(transportCoder, data, 'ServerInputData');
             if (!decRes.isSucc) {
                 console.error('[INVALID_DATA]', 'Cannot decode data', `data.length=${data.length}`, decRes.error);
                 return;
             }
-            let transportData = decRes.output as InputData;
+            let transportData = decRes.output as ServerInputData;
 
             // 确认是哪个Service
             let service = this.services[transportData[0]];

@@ -5,10 +5,10 @@
 /**
  * [ ServiceID, Buffer, PtlSN? ]
  */
-export type InputData = [uint, Uint8Array, uint?];
+export type ServerInputData = [uint, Uint8Array, uint?];
 
 /**
  * ApiRes: [ ServiceID, Buffer, PtlSN, isSucc ]
  * Msg: [ ServiceID, Buffer ]
  */
-export type OutputData = [uint, Uint8Array, uint?, boolean?];
+export type ServerOutputData = [uint, Uint8Array, uint?, boolean?];
