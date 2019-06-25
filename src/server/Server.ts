@@ -29,7 +29,7 @@ const transportCoder = new TSBuffer({
         ],
         "optionalStartIndex": 2
     },
-    "OutputData": {
+    "ServerOutputData": {
         "type": "Tuple",
         "elementTypes": [
             {
