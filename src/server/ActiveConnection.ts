@@ -56,10 +56,10 @@ export class ActiveConnection<SessionData = any> {
         // TODO
 
         // TEST
-        this.client.send(`API SUCC SN=${sn} SVC_ID=${svcId} body=${body}`);
+        this.client.send(`API SUCC SN=${call.sn} SVC_ID=${call.service.id} body=${body}`);
     }
 
-    sendApiError(call: ApiCall<any>, body: {errMsg: string, errInfo?: any}) {
+    sendApiError(call: ApiCall<any>, body: { errMsg: string, errInfo?: any }) {
         // TODO
     }
 }
