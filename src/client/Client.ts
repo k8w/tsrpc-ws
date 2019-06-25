@@ -1,3 +1,5 @@
+import * as WebSocket from 'ws';
+
 export class Client {
 
     connect() { }
@@ -6,27 +8,8 @@ export class Client {
 
     callApi() { }
 
-    listen() { }
+    listenMsg() { }
+    unlistenMsg() { }
 
-    unlisten() { }
-
-    on(event: 'error') { }
+    sendMsg(){}
 }
-
-interface PushPtlTest {
-    pid: 'xxxx',
-    a: string,
-    b: string[]
-}
-
-class PushPtl<T> { }
-
-let ptl1 = new PushPtl<PushPtlTest>();
-
-function listen<T>(ptl: PushPtl<T>, handler: (msg: T) => void) {
-
-}
-
-listen(ptl1, v => {
-    v
-})
