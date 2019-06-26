@@ -11,15 +11,22 @@ import { ServerInputData } from '../proto/TransportData';
 import { CoderUtil } from '../models/CoderUtil';
 import { Counter } from '../models/Counter';
 
-export class Server {
+export interface BaseServerType {
+    req: any,
+    res: any,
+    msg: any,
+    session: any
+}
+
+export class Server<ServerType extends BaseServerType = any> {
 
     // Flow return 代表是否继续执行后续流程
-    readonly apiFlow: ((call: ApiCall<any>) => (boolean | Promise<boolean>))[] = [];
+    readonly apiFlow: ((call: ApiCall<any, any>) => (boolean | Promise<boolean>))[] = [];
     readonly msgFlow: ((call: MsgCall<any>) => (boolean | Promise<boolean>))[] = [];
 
     private _wsServer?: WebSocketServer;
-    private readonly _conns: ActiveConnection[] = [];
-    private readonly _id2Conn: { [connId: number]: ActiveConnection | undefined } = {};
+    private readonly _conns: ActiveConnection<ServerType>[] = [];
+    private readonly _id2Conn: { [connId: number]: ActiveConnection<ServerType> | undefined } = {};
 
     private readonly _options: ServerOptions;
     readonly services: ServiceProto['services'];
@@ -28,7 +35,7 @@ export class Server {
     private _connIdCounter = new Counter();
 
     // Handlers
-    private _apiHandlers: { [apiName: string]: ((call: ApiCall<any>) => void | Promise<void>) | undefined } = {};
+    private _apiHandlers: { [apiName: string]: ((call: ApiCall<any, any>) => void | Promise<void>) | undefined } = {};
     // 多个Handler将异步并行执行
     private _msgHandlers: { [msgName: string]: ((call: MsgCall<any>) => void | Promise<void>)[] | undefined } = {};
 
@@ -110,7 +117,7 @@ export class Server {
             server: this,
             client: client,
             request: req,
-            sessionData: this._options.defaultSessionData,
+            session: this._options.defaultSessionData,
             onClose: this._onClientClose
         });
         this._conns.push(conn);
@@ -123,7 +130,7 @@ export class Server {
         console.log('[CLIENT_CONNECT]', `IP=${conn.ip}`, `ConnID=${conn.connId}`, `ActiveConn=${this._conns.length}`);
     };
 
-    private _onClientMessage(conn: ActiveConnection, data: WebSocket.Data) {
+    private _onClientMessage(conn: ActiveConnection<ServerType>, data: WebSocket.Data) {
         // 文字消息，通常用于调试，直接打印
         if (typeof data === 'string') {
             console.debug('[RECV_TXT]', data);
@@ -184,19 +191,19 @@ export class Server {
         }
     }
 
-    private _onClientError(conn: ActiveConnection, e: Error) {
+    private _onClientError(conn: ActiveConnection<ServerType>, e: Error) {
         console.warn('[CLIENT_ERROR]', e);
     }
 
-    private _onClientClose(conn: ActiveConnection, code: number, reason: string) {
+    private _onClientClose(conn: ActiveConnection<ServerType>, code: number, reason: string) {
         this._conns.removeOne(v => v.connId === conn.connId);
         this._id2Conn[conn.connId] = undefined;
         console.log('[CLIENT_CLOSE]', `IP=${conn.ip} ConnID=${conn.connId} Code=${code} ${reason ? `Reason=${reason} ` : ''}ActiveConn=${this._conns.length}`);
     }
 
-    private async _handleApi(conn: ActiveConnection, service: ApiServiceDef, sn: number, reqBody: any) {
+    private async _handleApi(conn: ActiveConnection<ServerType>, service: ApiServiceDef, sn: number, reqBody: any) {
         // Create ApiCall
-        let call: ApiCall<any> = {
+        let call: ApiCall<any, any> = {
             service: service,
             sn: sn,
             conn: conn,
@@ -232,8 +239,9 @@ export class Server {
         }
 
         // ApiHandler
-        if (this._apiHandlers[service.name]) {
-            let res = this._apiHandlers[service.name];
+        let handler = this._apiHandlers[service.name];
+        if (handler) {
+            let res = handler(call);
             if (res instanceof Promise) {
                 await res;
             }
@@ -244,7 +252,7 @@ export class Server {
         }
     }
 
-    private async _handleMsg(conn: ActiveConnection, service: MsgServiceDef, msgBody: any) {
+    private async _handleMsg(conn: ActiveConnection<ServerType>, service: MsgServiceDef, msgBody: any) {
         // Create MsgCall
         let call: MsgCall<any> = {
             conn: conn,
@@ -296,7 +304,12 @@ export class Server {
     }
 
     // API 只能实现一次
-    implementApi() { };
+    implementApi<T extends keyof ServerType['req']>(apiName: T, handler: (call: ApiCall<ServerType['req'][T], ServerType['res'][T]>) => any) {
+        if (this._apiHandlers[apiName as string]) {
+            throw new Error('Already exist handler for API: ' + apiName);
+        }
+        this._apiHandlers[apiName as string] = handler;
+    };
 
     // Msg 可以重复监听
     listenMsg() { };

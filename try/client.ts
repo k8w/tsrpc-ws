@@ -10,7 +10,24 @@ async function main() {
         }
     });
 
-    await client.connect();
-    console.log('连接成功');
+    try {
+        await client.connect();
+        console.log('连接成功');
+    }
+    catch (e) {
+        console.log('连接失败')
+        return;
+    }
 
+    setInterval(async () => {
+        try {
+            let res = await client.callApi('Test', { name: 'asdf' });
+            console.log('收到回复', res);
+        }
+        catch (e) {
+
+        }
+    }, 2000)
 }
+
+main();

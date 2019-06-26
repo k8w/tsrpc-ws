@@ -1,4 +1,4 @@
-import * as WebSocket from 'ws';
+import WebSocket from 'ws';
 import { CoderUtil } from '../models/CoderUtil';
 import { ServerOutputData, ServerInputData } from '../proto/TransportData';
 import { ServiceProto, ApiServiceDef, MsgServiceDef } from '../proto/ServiceProto';
@@ -52,7 +52,7 @@ export class Client<ServiceType extends { req: any, res: any, msg: any }> {
         this._ws.onclose = this._onClientClose;
 
         this._ws.onerror = e => {
-            console.error('[WebSocket ERROR]', e);
+            console.error('[WebSocket ERROR]', e.message);
         }
 
         this._ws.onmessage = e => { this._onClientMessage(e.data) };
@@ -178,6 +178,10 @@ export class Client<ServiceType extends { req: any, res: any, msg: any }> {
         let sn = this._apiSnCounter.getNext();
         let serverInputData: ServerInputData = [service.id, buf, sn];
         let transportData = CoderUtil.transportCoder.encode(serverInputData, 'ServerInputData');
+
+        // Send Data
+        this._ws.send(transportData);
+        console.debug('[REQ_SEND]', transportData)
 
         // Wait for Res
         let promise = new Promise<ServiceType['res'][T]>((rs, rj) => {

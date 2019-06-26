@@ -7,15 +7,15 @@ export interface BaseCall {
     log: (...args: any) => void;
 }
 
-export interface ApiCall<T> extends BaseCall {
+export interface ApiCall<Req, Res> extends BaseCall {
     service: ApiServiceDef,
     sn: number,
-    data: T,
+    data: Req,
 
-    output?: any
+    output?: any,
 
     // res
-    succ: (data: any) => void;
+    succ: (data: Res) => void;
     error: (message: string, info?: any) => void;
 }
 
@@ -24,4 +24,4 @@ export interface MsgCall<T> extends BaseCall {
     data: T
 }
 
-export type RPCCall = ApiCall<any> | MsgCall<any>;
+export type RPCCall = ApiCall<any, any> | MsgCall<any>;

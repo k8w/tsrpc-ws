@@ -1,12 +1,13 @@
-class Test<C extends Conf<any, any>> {
+class Test<C extends {
+    req: any,
+    res: any,
+    session?: any
+}> {
     callApi<T extends keyof C['req']>(name: T, req: C['req'][T]): C['res'][T] {
         throw new Error('')
     }
-}
 
-type Conf<Req, Res> = {
-    req: Req,
-    res: Res
+    getSession(): C['session'] { return null as any };
 }
 
 type Req1 = { a: { a: string }, b: { b: string }, c: { c: string } };
@@ -16,7 +17,9 @@ type Conf1 = {
     res: Res1
 }
 
-let test = new Test<Conf1>();
+let test = new Test<Conf1 & {session: {a:string,b:boolean[]}}>();
 test.callApi('a', { a: 'asdg' }).ra
 test.callApi('b', { b: 's' }).rb
 test.callApi('c', { c: 'asdg' })
+
+test.getSession()

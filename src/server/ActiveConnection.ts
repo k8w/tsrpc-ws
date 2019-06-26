@@ -1,29 +1,31 @@
 import * as http from "http";
 import * as WebSocket from "ws";
-import { Server } from './Server';
+import { Server, BaseServerType } from './Server';
 import { ApiCall } from './RPCCall';
+import { CoderUtil } from '../models/CoderUtil';
+import { ServerOutputData } from '../proto/TransportData';
 
 /**
  * 当前活跃的连接
  */
-export class ActiveConnection<SessionData = any> {
+export class ActiveConnection<ServerType extends BaseServerType = any> {
 
-    readonly options: ActiveConnectionOptions<SessionData>;
-    readonly server: Server;
+    readonly options: ActiveConnectionOptions<ServerType>;
+    readonly server: Server<ServerType>;
     readonly client: WebSocket;
     readonly request: http.IncomingMessage;
     readonly connId: number;
     readonly ip: string;
-    readonly sessionData: SessionData;
+    readonly session: ServerType['session'];
 
-    constructor(options: ActiveConnectionOptions<SessionData>) {
+    constructor(options: ActiveConnectionOptions<ServerType>) {
         this.options = options;
         this.server = options.server;
         this.client = options.client;
         this.request = options.request;
         this.ip = this._getClientIp(options.request);
         this.connId = options.connId;
-        this.sessionData = options.sessionData;
+        this.session = options.session;
     }
 
     private _getClientIp(req: http.IncomingMessage) {
@@ -52,23 +54,33 @@ export class ActiveConnection<SessionData = any> {
     // Send Msg
     sendMsg() { };
 
-    sendApiSucc(call: ApiCall<any>, body: any) {
-        // TODO
+    sendApiSucc(call: ApiCall<any, any>, body: any) {
+        if (call.output) {
+            call.log('This request is already responsed')
+            return;
+        }
 
-        // TEST
-        this.client.send(`API SUCC SN=${call.sn} SVC_ID=${call.service.id} body=${body}`);
+        // Encode Res Body
+        let bufBody = this.server.tsbuffer.encode(body, call.service.res);
+
+        // Encode Transport Data
+        let outputData: ServerOutputData = [call.service.id, bufBody, call.sn, true];
+        let transportData = CoderUtil.transportCoder.encode(outputData, 'ServerOutputData');
+
+        this.client.send(transportData);
+        call.output = body;
     }
 
-    sendApiError(call: ApiCall<any>, body: { errMsg: string, errInfo?: any }) {
+    sendApiError(call: ApiCall<any, any>, body: { errMsg: string, errInfo?: any }) {
         // TODO
     }
 }
 
-export interface ActiveConnectionOptions<SessionData> {
+export interface ActiveConnectionOptions<ServerType extends BaseServerType = any> {
     connId: number,
-    server: Server,
+    server: Server<ServerType>,
     client: WebSocket,
     request: http.IncomingMessage,
-    sessionData: SessionData,
-    onClose: (conn: ActiveConnection<SessionData>, code: number, reason: string) => void
+    session: ServerType['session'],
+    onClose: (conn: ActiveConnection<ServerType>, code: number, reason: string) => void
 }
