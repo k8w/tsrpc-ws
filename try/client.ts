@@ -19,31 +19,28 @@ async function main() {
         return;
     }
 
-    // setInterval(async () => {
-    //     try {
-    //         let res = await client.callApi('Test', { name: '小明同学' });
-    //         console.log('收到回复', res);
-    //     }
-    //     catch (e) {
+    setInterval(async () => {
+        let res = await client.callApi('Test', { name: '小明同学' });
+        console.log('收到回复', res);
+    }, 1000);
 
-    //     }
-    // }, 1);
+    // #region Benchmark
+    // let maxTime = 0;
+    // let done = 0;
+    // let startTime = Date.now();
 
-    let maxTime = 0;
-    let done = 0;
-    let startTime = Date.now();
+    // setTimeout(() => {
+    //     console.log('done', maxTime, done);
+    //     process.exit();
+    // }, 3000);
 
-    setTimeout(() => {
-        console.log('done', maxTime, done);
-        process.exit();
-    }, 3000);
-
-    for (let i = 0; i < 10000; ++i) {
-        client.callApi('Test', { name: '小明同学' }).then(() => {
-            ++done;
-            maxTime = Math.max(maxTime, Date.now() - startTime)
-        })
-    }
+    // for (let i = 0; i < 10000; ++i) {
+    //     client.callApi('Test', { name: '小明同学' }).then(() => {
+    //         ++done;
+    //         maxTime = Math.max(maxTime, Date.now() - startTime)
+    //     })
+    // }
+    // #endregion    
 }
 
 main();
