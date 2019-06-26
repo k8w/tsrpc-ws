@@ -1,5 +1,5 @@
 import { ActiveConnection } from './ActiveConnection';
-import { ApiServiceDef, MsgServiceDef } from './proto/ServiceProto';
+import { ApiServiceDef, MsgServiceDef } from '../proto/ServiceProto';
 export interface BaseCall {
     conn: ActiveConnection;
 
@@ -16,7 +16,7 @@ export interface ApiCall<T> extends BaseCall {
 
     // res
     succ: (data: any) => void;
-    error: (errMsg: string, errInfo?: any) => void;
+    error: (message: string, info?: any) => void;
 }
 
 export interface MsgCall<T> extends BaseCall {

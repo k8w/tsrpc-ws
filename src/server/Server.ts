@@ -1,4 +1,4 @@
-import { ServiceProto, ApiServiceDef, MsgServiceDef } from './proto/ServiceProto';
+import { ServiceProto, ApiServiceDef, MsgServiceDef } from '../proto/ServiceProto';
 import * as WebSocket from 'ws';
 import { Server as WebSocketServer } from 'ws';
 import * as http from "http";
@@ -8,49 +8,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { ApiCall, MsgCall } from './RPCCall';
 import { ServerInputData } from '../proto/TransportData';
-
-/** 传输数据 编解码器 */
-const transportCoder = new TSBuffer({
-    "ServerInputData": {
-        "type": "Tuple",
-        "elementTypes": [
-            {
-                "type": "Number",
-                "scalarType": "uint"
-            },
-            {
-                "type": "Buffer",
-                "arrayType": "Uint8Array"
-            },
-            {
-                "type": "Number",
-                "scalarType": "uint"
-            }
-        ],
-        "optionalStartIndex": 2
-    },
-    "ServerOutputData": {
-        "type": "Tuple",
-        "elementTypes": [
-            {
-                "type": "Number",
-                "scalarType": "uint"
-            },
-            {
-                "type": "Buffer",
-                "arrayType": "Uint8Array"
-            },
-            {
-                "type": "Number",
-                "scalarType": "uint"
-            },
-            {
-                "type": "Boolean"
-            }
-        ],
-        "optionalStartIndex": 2
-    }
-})
+import { CoderUtil } from '../models/CoderUtil';
+import { Counter } from '../models/Counter';
 
 export class Server {
 
@@ -65,6 +24,8 @@ export class Server {
     private readonly _options: ServerOptions;
     readonly services: ServiceProto['services'];
     readonly tsbuffer: TSBuffer;
+
+    private _connIdCounter = new Counter();
 
     // Handlers
     private _apiHandlers: { [apiName: string]: ((call: ApiCall<any>) => void | Promise<void>) | undefined } = {};
@@ -97,18 +58,17 @@ export class Server {
     }
 
     // ConnID 1 ~ Number.MAX_SAFE_INTEGER
-    private _nextConnId: number = 0;
     getNextConnId(): number {
-        while (true) {
-            // 确保ConnID在 1~MAX_SAFE_INTEGER 之间
-            if (this._nextConnId >= Number.MAX_SAFE_INTEGER) {
-                this._nextConnId = 0;
-            }
-
-            if (!this._id2Conn[++this._nextConnId]) {
-                return this._nextConnId;
+        // 最多尝试1万次
+        for (let i = 0; i < 10000; ++i) {
+            let connId = this._connIdCounter.getNext();
+            if (!this._id2Conn[connId]) {
+                return connId;
             }
         }
+
+        console.error('No available connId till ' + this._connIdCounter.last);
+        return NaN;
     }
 
     /**
@@ -138,9 +98,15 @@ export class Server {
     }
 
     private _onClientConnect = (client: WebSocket, req: http.IncomingMessage) => {
+        let connId = this.getNextConnId()
+        if (isNaN(connId)) {
+            client.close();
+            return;
+        }
+
         // Create Active Connection
         let conn = new ActiveConnection({
-            connId: this.getNextConnId(),
+            connId: connId,
             server: this,
             client: client,
             request: req,
@@ -167,7 +133,7 @@ export class Server {
         }
         else if (Buffer.isBuffer(data)) {
             // 解码ServerInputData
-            let decRes = this._tryDecode(transportCoder, data, 'ServerInputData');
+            let decRes = CoderUtil.tryDecode(CoderUtil.transportCoder, data, 'ServerInputData');
             if (!decRes.isSucc) {
                 console.error('[INVALID_DATA]', 'Cannot decode data', `data.length=${data.length}`, decRes.error);
                 return;
@@ -190,7 +156,7 @@ export class Server {
                 }
 
                 // Parse body
-                let decRes = this._tryDecode(this.tsbuffer, transportData[1], service.req);
+                let decRes = CoderUtil.tryDecode(this.tsbuffer, transportData[1], service.req);
                 if (!decRes.isSucc) {
                     console.error('[INVALID_REQ]', decRes.error);
                     // TODO res error
@@ -203,10 +169,9 @@ export class Server {
             // Handle Msg
             else {
                 // Parse body
-                let decRes = this._tryDecode(this.tsbuffer, transportData[1], service.schema);
+                let decRes = CoderUtil.tryDecode(this.tsbuffer, transportData[1], service.schema);
                 if (!decRes.isSucc) {
                     console.error('[INVALID_MSG]', decRes.error);
-                    // TODO res error
                     return;
                 }
                 let msgBody = decRes.output as any;
@@ -226,39 +191,7 @@ export class Server {
     private _onClientClose(conn: ActiveConnection, code: number, reason: string) {
         this._conns.removeOne(v => v.connId === conn.connId);
         this._id2Conn[conn.connId] = undefined;
-        console.log('[CLIENT_CLOSED]', `IP=${conn.ip}`, `Code=${code}`, `Reason=${reason || ''}`, `ActiveConn=${this._conns.length}`);
-    }
-
-    private _tryEncode(encoder: TSBuffer, value: any, schemaId: string): { isSucc: true, output: Uint8Array } | { isSucc: false, error: Error } {
-        try {
-            let output = encoder.encode(value, schemaId);
-            return {
-                isSucc: true,
-                output: output
-            }
-        }
-        catch (e) {
-            return {
-                isSucc: false,
-                error: e
-            }
-        }
-    }
-
-    private _tryDecode(decoder: TSBuffer, buf: Uint8Array, schemaId: string): { isSucc: true, output: unknown } | { isSucc: false, error: Error } {
-        try {
-            let output = decoder.decode(buf, schemaId);
-            return {
-                isSucc: true,
-                output: output
-            }
-        }
-        catch (e) {
-            return {
-                isSucc: false,
-                error: e
-            }
-        }
+        console.log('[CLIENT_CLOSE]', `IP=${conn.ip} ConnID=${conn.connId} Code=${code} ${reason ? `Reason=${reason} ` : ''}ActiveConn=${this._conns.length}`);
     }
 
     private async _handleApi(conn: ActiveConnection, service: ApiServiceDef, sn: number, reqBody: any) {
@@ -276,10 +209,10 @@ export class Server {
                 conn.sendApiSucc(call, resBody);
                 call.output = resBody;
             },
-            error: (errMsg, errInfo) => {
+            error: (message, info) => {
                 call.output = {
-                    errMsg: errMsg,
-                    errInfo: errInfo
+                    message: message,
+                    info: info
                 }
                 conn.sendApiError(call, call.output);
             }
