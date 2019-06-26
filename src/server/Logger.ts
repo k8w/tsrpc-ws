@@ -2,16 +2,17 @@ import { callbackify } from "util";
 
 export class Logger {
 
-    prefix: () => string;
+    prefix: () => string | string[];
     parent?: Logger;
 
-    constructor(prefix: () => string, parent?: Logger) {
+    constructor(prefix: () => string | string[], parent?: Logger) {
         this.prefix = prefix;
         this.parent = parent;
     }
 
     getPrefix(): string[] {
-        let output = [this.prefix()];
+        let prefix = this.prefix();
+        let output = Array.isArray(prefix) ? prefix : [prefix];
         let parent = this.parent;
         while (parent) {
             output = parent.getPrefix().concat(output);

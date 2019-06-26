@@ -4,6 +4,7 @@ import { Server, BaseServerType } from './Server';
 import { ApiCall } from './RPCCall';
 import { CoderUtil } from '../models/CoderUtil';
 import { ServerOutputData } from '../proto/TransportData';
+import { Logger } from './Logger';
 
 /**
  * 当前活跃的连接
@@ -17,6 +18,7 @@ export class ActiveConnection<ServerType extends BaseServerType = any> {
     readonly connId: number;
     readonly ip: string;
     readonly session: ServerType['session'];
+    readonly logger: Logger;
 
     constructor(options: ActiveConnectionOptions<ServerType>) {
         this.options = options;
@@ -26,6 +28,7 @@ export class ActiveConnection<ServerType extends BaseServerType = any> {
         this.ip = this._getClientIp(options.request);
         this.connId = options.connId;
         this.session = options.session;
+        this.logger = new Logger(() => [`Conn${this.connId}(${this.ip})`])
     }
 
     private _getClientIp(req: http.IncomingMessage) {
@@ -56,7 +59,7 @@ export class ActiveConnection<ServerType extends BaseServerType = any> {
 
     sendApiSucc(call: ApiCall<any, any>, body: any) {
         if (call.output) {
-            call.log('This request is already responsed')
+            call.logger.log('This request is already responsed')
             return;
         }
 
@@ -69,7 +72,7 @@ export class ActiveConnection<ServerType extends BaseServerType = any> {
 
         this.client.send(transportData);
         call.output = body;
-        call.log('[Res]', body)
+        call.logger.log('Res', body)
     }
 
     sendApiError(call: ApiCall<any, any>, body: { errMsg: string, errInfo?: any }) {

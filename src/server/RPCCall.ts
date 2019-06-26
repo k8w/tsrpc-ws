@@ -1,13 +1,9 @@
 import { ActiveConnection } from './ActiveConnection';
 import { ApiServiceDef, MsgServiceDef } from '../proto/ServiceProto';
+import { Logger } from './Logger';
 export interface BaseCall {
     conn: ActiveConnection;
-
-    // log
-    log: (...args: any) => void;
-    logDebug: (...args: any) => void;
-    logWarn: (...args: any) => void;
-    logError: (...args: any) => void;
+    logger: Logger;
 }
 
 export interface ApiCall<Req = any, Res = any> extends BaseCall {

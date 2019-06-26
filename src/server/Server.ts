@@ -10,6 +10,7 @@ import { ApiCall, MsgCall } from './RPCCall';
 import { ServerInputData } from '../proto/TransportData';
 import { CoderUtil } from '../models/CoderUtil';
 import { Counter } from '../models/Counter';
+import { Logger } from './Logger';
 
 export interface BaseServerType {
     req: any,
@@ -208,19 +209,7 @@ export class Server<ServerType extends BaseServerType = any> {
             sn: sn,
             conn: conn,
             data: reqBody,
-
-            log: (...args: any) => {
-                console.log(`[API: ${service.name}]`, `ConnID=${conn.connId} SN=${sn}`, ...args);
-            },
-            logDebug: (...args: any) => {
-                console.debug(`[API: ${service.name}]`, `ConnID=${conn.connId} SN=${sn}`, ...args);
-            },
-            logWarn: (...args: any) => {
-                console.warn(`[API: ${service.name}]`, `ConnID=${conn.connId} SN=${sn}`, ...args);
-            },
-            logError: (...args: any) => {
-                console.error(`[API: ${service.name}]`, `ConnID=${conn.connId} SN=${sn}`, ...args);
-            },
+            logger: new Logger(() => [`API#${sn}`, service.name], conn.logger),
             succ: (resBody) => {
                 conn.sendApiSucc(call, resBody);
                 call.output = resBody;
@@ -234,7 +223,7 @@ export class Server<ServerType extends BaseServerType = any> {
             }
         }
 
-        call.log('[Req]', call.data);
+        call.logger.log('Req', call.data);
 
         // ApiFlow
         for (let func of this.apiFlow) {
@@ -269,18 +258,7 @@ export class Server<ServerType extends BaseServerType = any> {
             conn: conn,
             service: service,
             data: msgBody,
-            log: (...args: any) => {
-                console.log('[MSG]', service.name, `${conn.connId}`, ...args);
-            },
-            logDebug: (...args: any) => {
-                console.debug('[MSG]', service.name, `${conn.connId}`, ...args);
-            },
-            logWarn: (...args: any) => {
-                console.warn('[MSG]', service.name, `${conn.connId}`, ...args);
-            },
-            logError: (...args: any) => {
-                console.error('[MSG]', service.name, `${conn.connId}`, ...args);
-            }
+            logger: new Logger(() => ['MSG', service.name], conn.logger)
         }
 
         // MsgFlow
