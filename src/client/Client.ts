@@ -181,7 +181,6 @@ export class Client<ServiceType extends { req: any, res: any, msg: any }> {
 
         // Send Data
         this._ws.send(transportData);
-        console.debug('[REQ_SEND]', transportData)
 
         // Wait for Res
         let promise = new Promise<ServiceType['res'][T]>((rs, rj) => {

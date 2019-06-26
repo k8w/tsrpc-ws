@@ -69,6 +69,7 @@ export class ActiveConnection<ServerType extends BaseServerType = any> {
 
         this.client.send(transportData);
         call.output = body;
+        call.log('[Res]', body)
     }
 
     sendApiError(call: ApiCall<any, any>, body: { errMsg: string, errInfo?: any }) {

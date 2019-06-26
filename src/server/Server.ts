@@ -210,7 +210,16 @@ export class Server<ServerType extends BaseServerType = any> {
             data: reqBody,
 
             log: (...args: any) => {
-                console.log('[API]', service.name, `${conn.connId}-${sn}`, ...args);
+                console.log(`[API: ${service.name}]`, `ConnID=${conn.connId} SN=${sn}`, ...args);
+            },
+            logDebug: (...args: any) => {
+                console.debug(`[API: ${service.name}]`, `ConnID=${conn.connId} SN=${sn}`, ...args);
+            },
+            logWarn: (...args: any) => {
+                console.warn(`[API: ${service.name}]`, `ConnID=${conn.connId} SN=${sn}`, ...args);
+            },
+            logError: (...args: any) => {
+                console.error(`[API: ${service.name}]`, `ConnID=${conn.connId} SN=${sn}`, ...args);
             },
             succ: (resBody) => {
                 conn.sendApiSucc(call, resBody);
@@ -224,6 +233,8 @@ export class Server<ServerType extends BaseServerType = any> {
                 conn.sendApiError(call, call.output);
             }
         }
+
+        call.log('[Req]', call.data);
 
         // ApiFlow
         for (let func of this.apiFlow) {
@@ -254,12 +265,21 @@ export class Server<ServerType extends BaseServerType = any> {
 
     private async _handleMsg(conn: ActiveConnection<ServerType>, service: MsgServiceDef, msgBody: any) {
         // Create MsgCall
-        let call: MsgCall<any> = {
+        let call: MsgCall = {
             conn: conn,
             service: service,
             data: msgBody,
             log: (...args: any) => {
                 console.log('[MSG]', service.name, `${conn.connId}`, ...args);
+            },
+            logDebug: (...args: any) => {
+                console.debug('[MSG]', service.name, `${conn.connId}`, ...args);
+            },
+            logWarn: (...args: any) => {
+                console.warn('[MSG]', service.name, `${conn.connId}`, ...args);
+            },
+            logError: (...args: any) => {
+                console.error('[MSG]', service.name, `${conn.connId}`, ...args);
             }
         }
 

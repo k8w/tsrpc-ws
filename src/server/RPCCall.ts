@@ -5,9 +5,12 @@ export interface BaseCall {
 
     // log
     log: (...args: any) => void;
+    logDebug: (...args: any) => void;
+    logWarn: (...args: any) => void;
+    logError: (...args: any) => void;
 }
 
-export interface ApiCall<Req, Res> extends BaseCall {
+export interface ApiCall<Req = any, Res = any> extends BaseCall {
     service: ApiServiceDef,
     sn: number,
     data: Req,
@@ -19,9 +22,9 @@ export interface ApiCall<Req, Res> extends BaseCall {
     error: (message: string, info?: any) => void;
 }
 
-export interface MsgCall<T> extends BaseCall {
+export interface MsgCall<T = any> extends BaseCall {
     service: MsgServiceDef,
     data: T
 }
 
-export type RPCCall = ApiCall<any, any> | MsgCall<any>;
+export type RPCCall = ApiCall | MsgCall;
