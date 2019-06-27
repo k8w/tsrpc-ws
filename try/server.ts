@@ -9,6 +9,10 @@ server.implementApi('Test', call => {
     call.succ({
         reply: 'Hello, ' + call.data.name
     })
+});
+
+server.listenMsg('Chat', call => {
+    call.conn.sendMsg('')
 })
 
 server.start();

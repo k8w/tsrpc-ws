@@ -30,7 +30,7 @@ export const serviceProto: ServiceProto = {
             id: 1,
             type: 'msg',
             name: 'Chat',
-            schema: 'MsgChat/MsgChat'
+            msg: 'MsgChat/MsgChat'
         }
     ],
     "types": {
@@ -41,7 +41,7 @@ export const serviceProto: ServiceProto = {
                     "id": 0,
                     "name": "channel",
                     "type": {
-                        "type": "String"
+                        "type": "Number"
                     }
                 },
                 {

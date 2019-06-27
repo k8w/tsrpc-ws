@@ -13,7 +13,7 @@ export type ServerInputData = [uint, Uint8Array, uint?];
  */
 export type ServerOutputData = [uint, Uint8Array, uint?, boolean?];
 
-export interface ApiResError {
+export interface ApiError {
     message: string,
     info?: any
 }

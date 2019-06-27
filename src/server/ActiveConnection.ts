@@ -1,34 +1,43 @@
 import * as http from "http";
 import * as WebSocket from "ws";
-import { Server, BaseServerType } from './Server';
+import { Server, BaseServerCustomType } from './Server';
 import { ApiCall } from './RPCCall';
-import { CoderUtil } from '../models/CoderUtil';
-import { ServerOutputData } from '../proto/TransportData';
 import { Logger } from './Logger';
+import { Transporter, ServiceMap, RecvData } from '../models/Transporter';
+import { TSBuffer } from "tsbuffer";
 
 /**
  * 当前活跃的连接
  */
-export class ActiveConnection<ServerType extends BaseServerType = any> {
+export class ActiveConnection<ServerCustomType extends BaseServerCustomType = any> {
 
-    readonly options: ActiveConnectionOptions<ServerType>;
-    readonly server: Server<ServerType>;
-    readonly client: WebSocket;
+    readonly options: ActiveConnectionOptions<ServerCustomType>;
+    readonly server: Server<ServerCustomType>;
     readonly request: http.IncomingMessage;
     readonly connId: number;
     readonly ip: string;
-    readonly session: ServerType['session'];
+    readonly session: ServerCustomType['session'];
     readonly logger: Logger;
 
-    constructor(options: ActiveConnectionOptions<ServerType>) {
+    private _ws: WebSocket;
+    private _transporter: Transporter;
+
+    constructor(options: ActiveConnectionOptions<ServerCustomType>) {
         this.options = options;
         this.server = options.server;
-        this.client = options.client;
+        this._ws = options.ws;
         this.request = options.request;
         this.ip = this._getClientIp(options.request);
         this.connId = options.connId;
         this.session = options.session;
         this.logger = new Logger(() => [`Conn${this.connId}(${this.ip})`])
+        this._transporter = new Transporter('server', {
+            ws: this._ws,
+            proto: this.server.proto,
+            onRecvData: this._onRecvData,
+            tsbuffer: options.tsbuffer,
+            serviceMap: options.serviceMap
+        })
     }
 
     private _getClientIp(req: http.IncomingMessage) {
@@ -51,40 +60,55 @@ export class ActiveConnection<ServerType extends BaseServerType = any> {
     };
 
     // Listen Msg
-    listenMsg() { };
-    unlistenMsg() { };
+    // listenMsg() { };
+    // unlistenMsg() { };
 
     // Send Msg
-    sendMsg() { };
+    sendMsg<T extends keyof ServerCustomType['msg']>(msgName: T, msg: ServerCustomType['msg'][T]) {
+        return this._transporter.sendMsg(msgName as string, msg);
+    };
 
-    sendApiSucc(call: ApiCall<any, any>, body: any) {
+    sendApiSucc(call: ApiCall<any, any>, res: any) {
         if (call.output) {
             call.logger.log('This request is already responsed')
             return;
         }
 
-        // Encode Res Body
-        let bufBody = this.server.tsbuffer.encode(body, call.service.res);
+        this._transporter.sendApiSucc(call.service, call.sn, res)
 
-        // Encode Transport Data
-        let outputData: ServerOutputData = [call.service.id, bufBody, call.sn, true];
-        let transportData = CoderUtil.transportCoder.encode(outputData, 'ServerOutputData');
-
-        this.client.send(transportData);
-        call.output = body;
-        call.logger.log('Res', body)
+        call.output = res;
+        call.logger.log('Succ', res)
     }
 
-    sendApiError(call: ApiCall<any, any>, body: { errMsg: string, errInfo?: any }) {
-        // TODO
+    sendApiError(call: ApiCall<any, any>, message: string, info?: any) {
+        if (call.output) {
+            call.logger.log('This request is already responsed')
+            return;
+        }
+
+        let err = this._transporter.sendApiError(call.service, call.sn, message, info);
+
+        call.output = err;
+        call.logger.log('Error', err)
+    }
+
+    sendRaw(data: WebSocket.Data) {
+        this._ws.send(data);
+    }
+
+    private _onRecvData = (data: RecvData) => {
+        this.options.onRecvData(this, data);
     }
 }
 
-export interface ActiveConnectionOptions<ServerType extends BaseServerType = any> {
+export interface ActiveConnectionOptions<ServerCustomType extends BaseServerCustomType = any> {
     connId: number,
-    server: Server<ServerType>,
-    client: WebSocket,
+    server: Server<ServerCustomType>,
+    ws: WebSocket,
     request: http.IncomingMessage,
-    session: ServerType['session'],
-    onClose: (conn: ActiveConnection<ServerType>, code: number, reason: string) => void
+    session: ServerCustomType['session'],
+    tsbuffer: TSBuffer,
+    serviceMap: ServiceMap,
+    onClose: (conn: ActiveConnection<ServerCustomType>, code: number, reason: string) => void,
+    onRecvData: (conn: ActiveConnection<ServerCustomType>, data: RecvData) => void;
 }

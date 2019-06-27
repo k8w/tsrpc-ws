@@ -19,10 +19,23 @@ async function main() {
         return;
     }
 
-    setInterval(async () => {
-        let res = await client.callApi('Test', { name: '小明同学' });
-        console.log('收到回复', res);
-    }, 1000);
+    // setInterval(async () => {
+    //     let res = await client.callApi('Test', { name: '小明同学' });
+    //     console.log('收到回复', res);
+    // }, 1000);
+
+    client.listenMsg('Chat', msg => {
+        console.log('收到MSG', msg);
+    });
+
+    setInterval(() => {
+        client.sendMsg('Chat', {
+            channel: 123,
+            userName: '王小明',
+            content: '你好',
+            time: Date.now()
+        })
+    }, 1000)
 
     // #region Benchmark
     // let maxTime = 0;

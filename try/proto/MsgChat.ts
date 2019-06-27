@@ -1,5 +1,5 @@
 export interface MsgChat {
-    channel: string,
+    channel: number,
     userName: string,
     content: string,
     time: number

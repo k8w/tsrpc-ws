@@ -14,7 +14,7 @@ export interface ApiServiceDef extends BaseServiceDef {
 
 export interface MsgServiceDef extends BaseServiceDef {
     type: 'msg',
-    schema: string,
+    msg: string,
     conf?: { [key: string]: any }
 }
 

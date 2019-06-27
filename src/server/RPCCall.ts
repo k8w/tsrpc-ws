@@ -18,9 +18,9 @@ export interface ApiCall<Req = any, Res = any> extends BaseCall {
     error: (message: string, info?: any) => void;
 }
 
-export interface MsgCall<T = any> extends BaseCall {
+export interface MsgCall<Msg = any> extends BaseCall {
     service: MsgServiceDef,
-    data: T
+    data: Msg
 }
 
 export type RPCCall = ApiCall | MsgCall;

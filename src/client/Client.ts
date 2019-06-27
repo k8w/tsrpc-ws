@@ -1,66 +1,83 @@
 import WebSocket from 'ws';
 import { CoderUtil } from '../models/CoderUtil';
-import { ServerOutputData, ServerInputData } from '../proto/TransportData';
-import { ServiceProto, ApiServiceDef, MsgServiceDef } from '../proto/ServiceProto';
+import { ServerOutputData, ServerInputData, ApiError } from '../proto/TransportData';
+import { ServiceProto, ApiServiceDef, MsgServiceDef, ServiceDef } from '../proto/ServiceProto';
 import { TSBuffer } from 'tsbuffer';
 import { Counter } from '../models/Counter';
 import { TSRPCError } from '../models/TSRPCError';
+import { HandlersObjUtil } from '../models/HandlersObjUtil';
+import { Transporter, RecvData } from '../models/Transporter';
+import { HandlerManager } from '../models/HandlerManager';
 
-export class Client<ServiceType extends { req: any, res: any, msg: any }> {
+export interface BaseClientCustomType {
+    req: any,
+    res: any,
+    msg: any
+}
+
+export class Client<ClientCustomType extends BaseClientCustomType> {
 
     private readonly _options: ClientOptions;
-    readonly services: ServiceProto['services'];
-    readonly tsbuffer: TSBuffer;
-    private _apiName2Service: { [apiName: string]: ApiServiceDef } = {};
-    private _msgName2Service: { [msgName: string]: MsgServiceDef } = {};
 
+    private _transporter: Transporter;
     private _ws?: WebSocket;
+    private _msgHandlers: HandlerManager = new HandlerManager();
 
     constructor(options: Pick<ClientOptions, 'server' | 'proto'> & Partial<ClientOptions>) {
         this._options = Object.assign({}, defaultClientOptions, options);
-        this.services = this._options.proto.services;
-        this.tsbuffer = new TSBuffer(this._options.proto.types);
-
-        for (let v of this.services) {
-            if (v.type === 'api') {
-                this._apiName2Service[v.name] = v;
-            }
-            else {
-                this._msgName2Service[v.name] = v;
-            }
-        }
+        this._transporter = new Transporter('client', {
+            proto: this._options.proto,
+            onRecvData: this._onRecvData
+        });
     }
 
-    private _rsConnect?: () => void;
-    private _rjConnect?: () => void;
+    private _connecting?: Promise<void>;
     async connect() {
-        // 连接已存在
+        // 已连接中
+        if (this._connecting) {
+            return this._connecting;
+        }
+
+        // 已连接成功
         if (this._ws) {
-            console.warn('Connection exists already')
             return;
         }
 
         this._options.onStatusChange && this._options.onStatusChange('connecting');
+
         this._ws = new (WebSocket as any)(this._options.server) as WebSocket;
+        this._connecting = new Promise((rs: Function, rj?: Function) => {
+            this._ws!.onopen = () => {
+                this._connecting = undefined;
+                rs();
+                this._options.onStatusChange && this._options.onStatusChange('open');
+                rj = undefined;
+                this._ws!.onopen = undefined as any;
+                this._transporter.resetWs(this._ws!);
+            };
 
-        this._ws.onopen = () => {
-            this._rsConnect && this._rsConnect();
-            this._rsConnect = this._rjConnect = undefined;
-            this._options.onStatusChange && this._options.onStatusChange('open');
-        };
+            this._ws!.onclose = e => {
+                // 还在连接中，则连接失败
+                if (rj) {
+                    rj();
+                }
 
-        this._ws.onclose = this._onClientClose;
+                // 清空WebSocket Listener
+                this._ws!.onopen = this._ws!.onclose = this._ws!.onmessage = this._ws!.onerror = undefined as any;
+                this._ws = undefined;
+
+                // 重设Transporter
+                this._transporter.resetWs(undefined);
+
+                this._options.onStatusChange && this._options.onStatusChange('closed');
+            };
+        })
 
         this._ws.onerror = e => {
             console.error('[WebSocket ERROR]', e.message);
         }
 
-        this._ws.onmessage = e => { this._onClientMessage(e.data) };
-
-        return new Promise((rs, rj) => {
-            this._rsConnect = rs;
-            this._rjConnect = rj;
-        })
+        return this._connecting;
     }
 
     private _rsClose?: Promise<void>;
@@ -73,127 +90,78 @@ export class Client<ServiceType extends { req: any, res: any, msg: any }> {
         this._ws.close();
     }
 
-    private _onClientMessage(data: WebSocket.Data) {
+    private _onRecvData = (recvData: RecvData) => {
         // 文字消息，通常用于调试，直接打印
-        if (typeof data === 'string') {
-            console.debug('[RECV_TXT]', data);
+        if (recvData.type === 'text') {
+            console.debug('Received Text:', recvData.data);
         }
-        else if (Buffer.isBuffer(data)) {
-            // 解码ServerOutputData
-            let decRes = CoderUtil.tryDecode(CoderUtil.transportCoder, data, 'ServerOutputData');
-            if (!decRes.isSucc) {
-                console.error('[INVALID_DATA]', 'Cannot decode data', `data.length=${data.length}`, decRes.error);
-                return;
+        else if (recvData.type === 'apiReq') {
+            let pending = this._pendingApi[recvData.sn];
+            if (pending) {
+                delete this._pendingApi[recvData.sn];
+                pending.rs(recvData.data);
             }
-            let transportData = decRes.output as ServerOutputData;
-
-            // 确认是哪个Service
-            let service = this.services[transportData[0]];
-            if (!service) {
-                console.error('[INVALID_DATA]', `Cannot find service ID: ${transportData[0]}`);
-                return;
-            }
-
-            // Handle API
-            if (service.type === 'api') {
-                let sn = transportData[2] as number | undefined;
-                let isSucc = transportData[3] as boolean | undefined;
-                if (sn === undefined || isSucc === undefined) {
-                    console.error('[INVALID_RES]', 'Invalid API Response', `SN=${sn} isSucc=${isSucc}`);
-                    return;
-                }
-
-                let pending = this._pendingApi[sn];
-                if (!pending) {
-                    console.debug(`[INVALID_SN]`, `Invalid SN: ${sn}`);
-                    return;
-                }
-                delete this._pendingApi[sn];
-
-                // Parse body
-                let decRes = CoderUtil.tryDecode(this.tsbuffer, transportData[1], service.res);
-                if (!decRes.isSucc) {
-                    console.error('[INVALID_RES]', decRes.error);
-                    pending.rj(new TSRPCError('Invalid Response', 'INVALID_RES'))
-                    return;
-                }
-                let resBody = decRes.output as any;
-
-                pending.rs(resBody);
-            }
-            // Handle Msg
             else {
-                // Parse body
-                let decRes = CoderUtil.tryDecode(this.tsbuffer, transportData[1], service.schema);
-                if (!decRes.isSucc) {
-                    console.error('[INVALID_MSG]', decRes.error);
-                    // TODO res error
-                    return;
-                }
-                let msgBody = decRes.output as any;
-
-                // TODO msgBody
-                // TEST
-                console.log('RECV MSG', msgBody)
+                console.warn(`Invalid SN:`, `Invalid SN: ${recvData.sn}`);
+            }
+        }
+        else if (recvData.type === 'msg') {
+            if (!this._msgHandlers.forEachHandler(recvData.service.name, recvData.data)) {
+                console.debug('Unhandled msg:', recvData.data)
             }
         }
         else {
-            console.warn('Unexpected message type', data);
+            console.warn('Unresolved buffer:', recvData.data)
         }
     }
 
-    private _onClientClose = () => {
-        // 还在连接中，则连接失败
-        if (this._rjConnect) {
-            this._rjConnect();
-            this._rsConnect = this._rjConnect = undefined;
-        }
-
-        // 连接断开 则这个ws不再需要
-        if (this._ws) {
-            this._ws.onopen = this._ws.onclose = this._ws.onmessage = this._ws.onerror = undefined as any;
-            this._ws = undefined;
-        }
-
-        this._options.onStatusChange && this._options.onStatusChange('closed');
-    }
-
-    private _apiSnCounter = new Counter();
     private _pendingApi: {
         [sn: number]: { rs: (data: any) => void, rj: (err: any) => void } | undefined;
     } = {};
-    async callApi<T extends keyof ServiceType['req']>(apiName: T, req: ServiceType['req'][T])
-        : Promise<ServiceType['res'][T]> {
-        if (!this._ws || this.status !== 'open') {
-            throw new TSRPCError('Network Error', 'NETWORK_ERROR');
-        }
+    async callApi<T extends keyof ClientCustomType['req']>(apiName: T, req: ClientCustomType['req'][T], options: CallApiOptions = {})
+        : Promise<ClientCustomType['res'][T]> {
+        // Send Req
+        let sn = this._transporter.sendApiReq(apiName as string, req);
 
-        // GetService
-        let service = this._apiName2Service[apiName as string];
-
-        // Encode
-        let buf = this.tsbuffer.encode(req, service.req);
-
-        // Transport Encode
-        let sn = this._apiSnCounter.getNext();
-        let serverInputData: ServerInputData = [service.id, buf, sn];
-        let transportData = CoderUtil.transportCoder.encode(serverInputData, 'ServerInputData');
-
-        // Send Data
-        this._ws.send(transportData);
-
-        // Wait for Res
-        let promise = new Promise<ServiceType['res'][T]>((rs, rj) => {
+        // Wait Res
+        let promise = new Promise<ClientCustomType['res'][T]>((rs, rj) => {
             this._pendingApi[sn] = {
                 rs: rs,
                 rj: rj
             }
         });
         promise.then(() => {
+            if (timeoutTimer) {
+                clearTimeout(timeoutTimer);
+                timeoutTimer = undefined;
+            }
+
             delete this._pendingApi[sn];
         }).catch(() => {
+            if (timeoutTimer) {
+                clearTimeout(timeoutTimer);
+                timeoutTimer = undefined;
+            }
+
             delete this._pendingApi[sn];
         });
+
+        // Timeout
+        let timeout = options.timeout !== undefined ? options.timeout : this._options.apiTimeout;
+        let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+        if (timeout > 0) {
+            timeoutTimer = setTimeout(() => {
+                timeoutTimer = undefined;
+                if (this._pendingApi[sn]) {
+                    let err: ApiError = {
+                        message: 'Request timeout',
+                        info: 'TIMEOUT'
+                    }
+                    this._pendingApi[sn]!.rj(err);
+                }
+            }, timeout * 1000);
+        }
+
         return promise;
     }
 
@@ -209,21 +177,37 @@ export class Client<ServiceType extends { req: any, res: any, msg: any }> {
         }
     }
 
-    listenMsg() { }
-    unlistenMsg() { }
+    listenMsg<T extends keyof ClientCustomType['msg']>(msgName: T, handler: ClientMsgHandler<ClientCustomType['msg'][T]>) {
+        this._msgHandlers.addHandler(msgName as string, handler)
+    }
+    unlistenMsg<T extends keyof ClientCustomType['msg']>(msgName: T, handler?: ClientMsgHandler<ClientCustomType['msg'][T]>) {
+        this._msgHandlers.removeHandler(msgName as string, handler)
+    }
 
-    sendMsg() { }
+    sendMsg<T extends keyof ClientCustomType['msg']>(msgName: T, msg: ClientCustomType['msg'][T]) {
+        return this._transporter.sendMsg(msgName as string, msg);
+    }
 }
 
 const defaultClientOptions: ClientOptions = {
     server: '',
-    proto: undefined as any
+    proto: undefined as any,
+    // 默认超时30秒
+    apiTimeout: 30
 }
 
 export interface ClientOptions {
     server: string;
     proto: ServiceProto;
     onStatusChange?: (newStatus: ClientStatus) => void;
+    apiTimeout: number;
 }
 
 export type ClientStatus = 'open' | 'connecting' | 'closed';
+
+export type ClientMsgHandler<Msg> = (msg: Msg) => void | Promise<void>;
+
+export interface CallApiOptions {
+    /** 超时时间（单位：秒） */
+    timeout?: number;
+}
