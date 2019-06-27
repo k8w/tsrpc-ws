@@ -92,7 +92,7 @@ export class Client<ClientCustomType extends BaseClientCustomType> {
         this._ws.close();
     }
 
-    private _onRecvData = (recvData: RecvData) => {
+    private _onRecvData = (recvData: RecvData) => {       
         // 文字消息，通常用于调试，直接打印
         if (recvData.type === 'text') {
             console.debug('Received Text:', recvData.data);

@@ -11,6 +11,7 @@ import { Counter } from '../models/Counter';
 import { Logger } from './Logger';
 import { ServiceMap, Transporter, RecvData } from '../models/Transporter';
 import { HandlerManager } from '../models/HandlerManager';
+import { TSRPCError } from '../models/TSRPCError';
 
 export interface BaseServerCustomType {
     req: any,
@@ -102,7 +103,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
 
             this._wsServer.on('connection', this._onClientConnect);
             this._wsServer.on('error', e => {
-                console.error('[SVR_ERROR]', e);
+                console.error('[SVR_ERR]', e);
             });
         })
     }
@@ -154,7 +155,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
     }
 
     private _onClientError(conn: ActiveConnection<ServerCustomType>, e: Error) {
-        console.warn('[CLIENT_ERROR]', e);
+        console.warn('[CLIENT_ERR]', e);
     }
 
     private _onClientClose(conn: ActiveConnection<ServerCustomType>, code: number, reason: string) {
@@ -173,28 +174,36 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
             logger: new Logger(() => [`API#${sn}`, service.name], conn.logger),
             succ: (resBody) => {
                 conn.sendApiSucc(call, resBody);
-                call.output = resBody;
             },
             error: (message, info) => {
-                call.output = {
-                    message: message,
-                    info: info
-                }
-                conn.sendApiError(call, call.output);
+                conn.sendApiError(call, message, info);
             }
         }
 
         call.logger.log('Req', call.data);
 
         // ApiFlow
-        for (let func of this.apiFlow) {
-            let res = func(call);
-            if (res instanceof Promise) {
-                res = await res;
-            }
+        for (let i = 0; i < this.apiFlow.length; ++i) {
+            try {
+                let res = this.apiFlow[i](call);
+                if (res instanceof Promise) {
+                    res = await res;
+                }
 
-            // Return true 表示继续后续流程 否则表示立即中止
-            if (!res) {
+                // Return true 表示继续后续流程 否则表示立即中止
+                if (!res) {
+                    return;
+                }
+            }
+            // 一旦有异常抛出 立即中止处理流程
+            catch (e) {
+                call.logger.error('[API_FLOW_ERR]', `apiFlowIndex=${i}`, e);
+                if (e instanceof TSRPCError) {
+                    call.error(e.message, e.info);
+                }
+                else {
+                    call.error('Internal server error', 'INTERNAL_ERR');
+                }
                 return;
             }
         }
@@ -202,9 +211,20 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
         // ApiHandler
         let handler = this._apiHandlers[service.name];
         if (handler) {
-            let res = handler(call);
-            if (res instanceof Promise) {
-                await res;
+            try {
+                let res = handler(call);
+                if (res instanceof Promise) {
+                    await res;
+                }
+            }
+            catch (e) {
+                call.logger.error('[API_HANDLER_ERR]', e);
+                if (e instanceof TSRPCError) {
+                    call.error(e.message, e.info);
+                }
+                else {
+                    call.error('Internal server error', 'INTERNAL_ERR');
+                }
             }
         }
         // 未找到ApiHandler，且未进行任何输出
@@ -223,14 +243,20 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
         }
 
         // MsgFlow
-        for (let func of this.msgFlow) {
-            let res = func(call);
-            if (res instanceof Promise) {
-                res = await res;
+        for (let i = 0; i < this.msgFlow.length; ++i) {
+            try {
+                let res = this.msgFlow[i](call);
+                if (res instanceof Promise) {
+                    res = await res;
+                }
+                // Return true 表示继续后续流程 否则表示立即中止
+                if (!res) {
+                    return;
+                }
             }
-
-            // Return true 表示继续后续流程 否则表示立即中止
-            if (!res) {
+            // 一旦有异常抛出 立即中止处理流程
+            catch (e) {
+                call.logger.error('[MSG_FLOW_ERR]', `msgFlowIndex=${i}`, e);
                 return;
             }
         }

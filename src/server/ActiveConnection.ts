@@ -70,7 +70,6 @@ export class ActiveConnection<ServerCustomType extends BaseServerCustomType = an
 
     sendApiSucc(call: ApiCall<any, any>, res: any) {
         if (call.output) {
-            call.logger.log('This request is already responsed')
             return;
         }
 
@@ -82,14 +81,13 @@ export class ActiveConnection<ServerCustomType extends BaseServerCustomType = an
 
     sendApiError(call: ApiCall<any, any>, message: string, info?: any) {
         if (call.output) {
-            call.logger.log('This request is already responsed')
             return;
         }
 
         let err = this._transporter.sendApiError(call.service, call.sn, message, info);
 
         call.output = err;
-        call.logger.log('Error', err)
+        call.logger.log('Error', message, info);
     }
 
     sendRaw(data: WebSocket.Data) {

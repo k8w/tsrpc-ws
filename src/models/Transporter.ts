@@ -241,9 +241,11 @@ export class Transporter {
                     }
 
                     // Parse body
-                    let decRes = Transporter._tryDecode(this._tsbuffer, transportData[1], service.res);
+                    let decRes = isSucc ?
+                        Transporter._tryDecode(this._tsbuffer, transportData[1], service.res)
+                        : Transporter._tryDecode(Transporter.transportCoder, transportData[1], 'ApiError');
                     if (!decRes.isSucc) {
-                        console.warn('[INVALID_RES]', decRes.error);
+                        console.warn('[INVALID_RES]', decRes.error.message);
                         this.onRecvData({ type: 'buffer', data: data });
                         return;
                     }

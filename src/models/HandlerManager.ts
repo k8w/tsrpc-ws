@@ -8,7 +8,12 @@ export class HandlerManager {
         let handlers = this._handlers[key];
         if (handlers) {
             for (let handler of handlers) {
-                handler(...args);
+                try {
+                    handler(...args);
+                }
+                catch (e) {
+                    console.error('[MSG_HANDLER_ERR]', key, e);
+                }
             }
         }
         return handlers ? handlers.length : 0;

@@ -23,26 +23,31 @@ async function main() {
             let res = await client.callApi('Test', { name: '小明同学' });
             console.log('收到回复', res);
         }
-        catch{ }
+        catch (e) {
+            if (e.info === 'NETWORK_ERR') {
+                return;
+            }
+            console.log('API错误', e)
+        }
     }, 1000);
 
-    client.listenMsg('Chat', msg => {
-        console.log('收到MSG', msg);
-    });
+    // client.listenMsg('Chat', msg => {
+    //     console.log('收到MSG', msg);
+    // });
 
-    setInterval(() => {
-        try {
-            client.sendMsg('Chat', {
-                channel: 123,
-                userName: '王小明',
-                content: '你好',
-                time: Date.now()
-            }).catch(e => {
-                console.log('SendMsg Failed', e.message)
-            })
-        }
-        catch{ }
-    }, 1000)
+    // setInterval(() => {
+    //     try {
+    //         client.sendMsg('Chat', {
+    //             channel: 123,
+    //             userName: '王小明',
+    //             content: '你好',
+    //             time: Date.now()
+    //         }).catch(e => {
+    //             console.log('SendMsg Failed', e.message)
+    //         })
+    //     }
+    //     catch{ }
+    // }, 1000)
 
     // #region Benchmark
     // let maxTime = 0;
