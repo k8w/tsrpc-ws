@@ -1,4 +1,4 @@
-import { ServiceProto, ApiServiceDef, MsgServiceDef, ServiceDef } from '../proto/ServiceProto';
+import { ServiceProto, ApiServiceDef, MsgServiceDef } from '../proto/ServiceProto';
 import * as WebSocket from 'ws';
 import { Server as WebSocketServer } from 'ws';
 import * as http from "http";
@@ -7,11 +7,8 @@ import { TSBuffer } from 'tsbuffer';
 import * as fs from "fs";
 import * as path from "path";
 import { ApiCall, MsgCall } from './RPCCall';
-import { ServerInputData } from '../proto/TransportData';
-import { CoderUtil } from '../models/CoderUtil';
 import { Counter } from '../models/Counter';
 import { Logger } from './Logger';
-import { HandlersObjUtil } from '../models/HandlersObjUtil';
 import { ServiceMap, Transporter, RecvData } from '../models/Transporter';
 import { HandlerManager } from '../models/HandlerManager';
 
@@ -132,72 +129,13 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
         this._conns.push(conn);
         this._id2Conn[conn.connId] = conn;
 
-        ws.on('message', data => { this._onClientMessage(conn, data) });
         ws.on('error', e => { this._onClientError(conn, e) });
         ws.on('close', (code, reason) => { this._onClientClose(conn, code, reason) });
 
         console.log('[CLIENT_CONNECT]', `IP=${conn.ip}`, `ConnID=${conn.connId}`, `ActiveConn=${this._conns.length}`);
     };
 
-    private _onClientMessage(conn: ActiveConnection<ServerCustomType>, data: WebSocket.Data) {
-        // 文字消息，通常用于调试，直接打印
-        if (typeof data === 'string') {
-            
-        }
-        else if (Buffer.isBuffer(data)) {
-            // 解码ServerInputData
-            let decRes = CoderUtil.tryDecode(CoderUtil.transportCoder, data, 'ServerInputData');
-            if (!decRes.isSucc) {
-                console.error('[INVALID_DATA]', 'Cannot decode data', `data.length=${data.length}`, decRes.error);
-                return;
-            }
-            let transportData = decRes.output as ServerInputData;
-
-            // 确认是哪个Service
-            let service = this.services[transportData[0]];
-            if (!service) {
-                console.error('[INVALID_DATA]', `Cannot find service ID: ${transportData[0]}`);
-                return;
-            }
-
-            // Handle API
-            if (service.type === 'api') {
-                let sn = transportData[2] as number | undefined;
-                if (sn === undefined) {
-                    console.error('[INVALID_DATA]', 'Missing API SN', `data.length=${data.length}`);
-                    return;
-                }
-
-                // Parse body
-                let decRes = CoderUtil.tryDecode(this.tsbuffer, transportData[1], service.req);
-                if (!decRes.isSucc) {
-                    console.error('[INVALID_REQ]', decRes.error);
-                    // TODO res error
-                    return;
-                }
-                let reqBody = decRes.output as any;
-
-                this._handleApi(conn, service, sn, reqBody)
-            }
-            // Handle Msg
-            else {
-                // Parse body
-                let decRes = CoderUtil.tryDecode(this.tsbuffer, transportData[1], service.msg);
-                if (!decRes.isSucc) {
-                    console.error('[INVALID_MSG]', decRes.error);
-                    return;
-                }
-                let msgBody = decRes.output as any;
-
-                this._handleMsg(conn, service, msgBody);
-            }
-        }
-        else {
-            console.warn('Unexpected message type', data);
-        }
-    }
-
-    private _onRecvData(conn: ActiveConnection<ServerCustomType>, recvData: RecvData) {
+    private _onRecvData = (conn: ActiveConnection<ServerCustomType>, recvData: RecvData) => {
         if (recvData.type === 'text') {
             console.debug('[RECV_TXT]', recvData.data);
             if (recvData.data === 'status') {
@@ -205,13 +143,13 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
             }
         }
         else if (recvData.type === 'apiReq') {
-
+            this._handleApi(conn, recvData.service, recvData.sn, recvData.data);
         }
         else if (recvData.type === 'msg') {
-
+            this._handleMsg(conn, recvData.service, recvData.data);
         }
         else {
-            
+            console.warn('[UNRESOLVED_BUFFER]', recvData.data);
         }
     }
 
@@ -298,13 +236,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
         }
 
         // MsgHandler
-        let handlers = this._msgHandlers[service.name];
-        if (handlers) {
-            for (let handler of handlers) {
-                handler(call);
-            }
-        }
-        else {
+        if (!this._msgHandlers.forEachHandler(service.name, call)) {
             console.debug('[UNHANDLED_MSG]', service.name);
         }
     }
@@ -325,7 +257,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
     }
 
     // API 只能实现一次
-    implementApi<T extends keyof ServerCustomType['req']>(apiName: T, handler: ApiHandler<ServerCustomType['req'][T], ServerCustomType['res'][T]>) {
+    implementApi<T extends keyof ServerCustomType['req']>(apiName: T, handler: ApiHandler<ServerCustomType['req'][T], ServerCustomType['res'][T], ServerCustomType>) {
         if (this._apiHandlers[apiName as string]) {
             throw new Error('Already exist handler for API: ' + apiName);
         }
@@ -333,11 +265,11 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
     };
 
     // Msg 可以重复监听
-    listenMsg<T extends keyof ServerCustomType['msg']>(msgName: T, handler: MsgHandler<ServerCustomType['msg'][T]>) {
+    listenMsg<T extends keyof ServerCustomType['msg']>(msgName: T, handler: MsgHandler<ServerCustomType['msg'][T], ServerCustomType>) {
         this._msgHandlers.addHandler(msgName as string, handler);
     };
 
-    unlistenMsg<T extends keyof ServerCustomType['msg']>(msgName: T, handler?: MsgHandler<ServerCustomType['msg'][T]>) {
+    unlistenMsg<T extends keyof ServerCustomType['msg']>(msgName: T, handler?: MsgHandler<ServerCustomType['msg'][T], ServerCustomType>) {
         this._msgHandlers.removeHandler(msgName as string, handler);
     };
 
@@ -376,9 +308,22 @@ export type ServerOptions = {
     defaultSessionData: any;    // TODO
 };
 
-export type ApiHandler<Req = any, Res = any> = (call: ApiCall<Req, Res>) => void | Promise<void>;
-export type MsgHandler<Msg = any> = (msg: MsgCall<Msg>) => void | Promise<void>;
+export type ApiHandler<
+    Req = any,
+    Res = any,
+    ServerCustomType extends BaseServerCustomType = any
+    > = (call: ApiCall<Req, Res, ServerCustomType>) => void | Promise<void>;
+export type MsgHandler<
+    Msg = any, ServerCustomType extends BaseServerCustomType = any
+    > = (msg: MsgCall<Msg, ServerCustomType>) => void | Promise<void>;
 
 // Flow：return true 代表继续flow，否则为立即中止
-export type ApiFlowItem<Req = any, Res = any> = (call: ApiCall<Req, Res>) => boolean | Promise<boolean>;
-export type MsgFlowItem<Msg = any> = (msg: MsgCall<Msg>) => boolean | Promise<boolean>;
+export type ApiFlowItem<
+    Req = any,
+    Res = any,
+    ServerCustomType extends BaseServerCustomType = any
+    > = (call: ApiCall<Req, Res, ServerCustomType>) => boolean | Promise<boolean>;
+export type MsgFlowItem<
+    Msg = any,
+    ServerCustomType extends BaseServerCustomType = any
+    > = (msg: MsgCall<Msg, ServerCustomType>) => boolean | Promise<boolean>;

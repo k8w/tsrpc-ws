@@ -1,11 +1,6 @@
 import WebSocket from 'ws';
-import { CoderUtil } from '../models/CoderUtil';
-import { ServerOutputData, ServerInputData, ApiError } from '../proto/TransportData';
-import { ServiceProto, ApiServiceDef, MsgServiceDef, ServiceDef } from '../proto/ServiceProto';
-import { TSBuffer } from 'tsbuffer';
-import { Counter } from '../models/Counter';
-import { TSRPCError } from '../models/TSRPCError';
-import { HandlersObjUtil } from '../models/HandlersObjUtil';
+import { ApiError } from '../proto/TransportData';
+import { ServiceProto } from '../proto/ServiceProto';
 import { Transporter, RecvData } from '../models/Transporter';
 import { HandlerManager } from '../models/HandlerManager';
 
@@ -59,6 +54,7 @@ export class Client<ClientCustomType extends BaseClientCustomType> {
             this._ws!.onclose = e => {
                 // 还在连接中，则连接失败
                 if (rj) {
+                    this._connecting = undefined;
                     rj();
                 }
 
@@ -70,6 +66,11 @@ export class Client<ClientCustomType extends BaseClientCustomType> {
                 this._transporter.resetWs(undefined);
 
                 this._options.onStatusChange && this._options.onStatusChange('closed');
+
+                if (!this._disconnecting) {
+                    this._options.onLostConnection && this._options.onLostConnection();
+                }
+                this._disconnecting = false;
             };
         })
 
@@ -80,13 +81,14 @@ export class Client<ClientCustomType extends BaseClientCustomType> {
         return this._connecting;
     }
 
-    private _rsClose?: Promise<void>;
+    private _disconnecting = false;
     disconnect() {
         // 连接不存在
         if (!this._ws) {
             return;
         }
 
+        this._disconnecting = true;
         this._ws.close();
     }
 
@@ -95,11 +97,11 @@ export class Client<ClientCustomType extends BaseClientCustomType> {
         if (recvData.type === 'text') {
             console.debug('Received Text:', recvData.data);
         }
-        else if (recvData.type === 'apiReq') {
+        else if (recvData.type === 'apiRes') {
             let pending = this._pendingApi[recvData.sn];
             if (pending) {
                 delete this._pendingApi[recvData.sn];
-                pending.rs(recvData.data);
+                (recvData.isSucc ? pending.rs : pending.rj)(recvData.data);
             }
             else {
                 console.warn(`Invalid SN:`, `Invalid SN: ${recvData.sn}`);
@@ -199,8 +201,11 @@ const defaultClientOptions: ClientOptions = {
 export interface ClientOptions {
     server: string;
     proto: ServiceProto;
-    onStatusChange?: (newStatus: ClientStatus) => void;
     apiTimeout: number;
+
+    onStatusChange?: (newStatus: ClientStatus) => void;
+    /** 掉线 */
+    onLostConnection?: () => void;
 }
 
 export type ClientStatus = 'open' | 'connecting' | 'closed';

@@ -1,12 +1,13 @@
 import { ActiveConnection } from './ActiveConnection';
 import { ApiServiceDef, MsgServiceDef } from '../proto/ServiceProto';
 import { Logger } from './Logger';
-export interface BaseCall {
-    conn: ActiveConnection;
+import { BaseServerCustomType, Server } from './Server';
+export interface BaseCall<ServerCustomType extends BaseServerCustomType> {
+    conn: ActiveConnection<ServerCustomType>;
     logger: Logger;
 }
 
-export interface ApiCall<Req = any, Res = any> extends BaseCall {
+export interface ApiCall<Req = any, Res = any, ServerCustomType extends BaseServerCustomType = any> extends BaseCall<ServerCustomType> {
     service: ApiServiceDef,
     sn: number,
     data: Req,
@@ -18,7 +19,7 @@ export interface ApiCall<Req = any, Res = any> extends BaseCall {
     error: (message: string, info?: any) => void;
 }
 
-export interface MsgCall<Msg = any> extends BaseCall {
+export interface MsgCall<Msg = any, ServerCustomType extends BaseServerCustomType = any> extends BaseCall<ServerCustomType> {
     service: MsgServiceDef,
     data: Msg
 }

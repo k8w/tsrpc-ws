@@ -1,9 +1,9 @@
 import WebSocket from 'ws';
 import { MsgServiceDef, ApiServiceDef, ServiceProto, ServiceDef } from '../proto/ServiceProto';
-import { TSRPCError } from './TSRPCError';
 import { ServerInputData, ServerOutputData, ApiError } from '../proto/TransportData';
 import { TSBuffer } from 'tsbuffer';
 import { Counter } from './Counter';
+import { TSRPCError } from './TSRPCError';
 
 export class Transporter {
 
@@ -288,9 +288,9 @@ export class Transporter {
     private _sendTransportData(serviceId: number, buf: Uint8Array): Promise<void>;
     private _sendTransportData(serviceId: number, buf: Uint8Array, sn: number): void;
     private _sendTransportData(serviceId: number, buf: Uint8Array, sn: number, isSucc: boolean): void;
-    private _sendTransportData(serviceId: number, buf: Uint8Array, sn?: number, isSucc?: boolean) {
+    private _sendTransportData(serviceId: number, buf: Uint8Array, sn?: number, isSucc?: boolean): void | Promise<void> {
         if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
-            throw new TSRPCError('Connection is not ready', 'NETWORK_ERROR');
+            throw new TSRPCError('Connection is not ready', 'NETWORK_ERROR')
         }
 
         // Server send ServerOutputData

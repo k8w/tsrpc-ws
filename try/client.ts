@@ -7,34 +7,41 @@ async function main() {
         proto: serviceProto,
         onStatusChange: v => {
             console.log('StatusChange', v);
+        },
+        onLostConnection: () => {
+            console.log('连接断开，2秒后重连');
+            setTimeout(() => {
+                client.connect().catch(() => { });
+            }, 2000)
         }
     });
 
-    try {
-        await client.connect();
-        console.log('连接成功');
-    }
-    catch (e) {
-        console.log('连接失败')
-        return;
-    }
+    client.connect().catch(() => { });
 
-    // setInterval(async () => {
-    //     let res = await client.callApi('Test', { name: '小明同学' });
-    //     console.log('收到回复', res);
-    // }, 1000);
+    setInterval(async () => {
+        try {
+            let res = await client.callApi('Test', { name: '小明同学' });
+            console.log('收到回复', res);
+        }
+        catch{ }
+    }, 1000);
 
     client.listenMsg('Chat', msg => {
         console.log('收到MSG', msg);
     });
 
     setInterval(() => {
-        client.sendMsg('Chat', {
-            channel: 123,
-            userName: '王小明',
-            content: '你好',
-            time: Date.now()
-        })
+        try {
+            client.sendMsg('Chat', {
+                channel: 123,
+                userName: '王小明',
+                content: '你好',
+                time: Date.now()
+            }).catch(e => {
+                console.log('SendMsg Failed', e.message)
+            })
+        }
+        catch{ }
     }, 1000)
 
     // #region Benchmark

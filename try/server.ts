@@ -12,7 +12,12 @@ server.implementApi('Test', call => {
 });
 
 server.listenMsg('Chat', call => {
-    call.conn.sendMsg('')
+    call.conn.sendMsg('Chat', {
+        channel: call.data.channel,
+        userName: '系统',
+        content: '收到！',
+        time: Date.now()
+    })
 })
 
 server.start();
