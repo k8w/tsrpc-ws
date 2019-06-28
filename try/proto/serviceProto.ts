@@ -1,15 +1,16 @@
 import { MsgChat } from './MsgChat';
 import { ReqTest, ResTest } from './PtlTest';
 import { ServiceProto } from '../../src/proto/ServiceProto';
+import { ReqTest1, ResTest1 } from './a/b/c/PtlTest1';
 
 export interface ServiceType {
     req: {
         'Test': ReqTest,
-        'a/b/c': { a: string }
+        'a/b/c/Test1': ReqTest1
     },
     res: {
         'Test': ResTest,
-        'a/b/c': { ra: string }
+        'a/b/c/Test1': ResTest1
     }
     msg: {
         'Chat': MsgChat,
@@ -31,7 +32,21 @@ export const serviceProto: ServiceProto = {
             type: 'msg',
             name: 'Chat',
             msg: 'MsgChat/MsgChat'
-        }
+        },
+        {
+            id: 2,
+            type: 'api',
+            name: 'a/b/c/Test1',
+            req: 'a/b/c/PtlTest1/ReqTest1',
+            res: 'a/b/c/PtlTest1/ResTest1'
+        },
+        {
+            id: 3,
+            type: 'api',
+            name: 'a/b/c/d/e',
+            req: 'xxx',
+            res: 'xxx'
+        },
     ],
     "types": {
         "MsgChat/MsgChat": {
@@ -80,6 +95,30 @@ export const serviceProto: ServiceProto = {
             ]
         },
         "PtlTest/ResTest": {
+            "type": "Interface",
+            "properties": [
+                {
+                    "id": 0,
+                    "name": "reply",
+                    "type": {
+                        "type": "String"
+                    }
+                }
+            ]
+        },
+        "a/b/c/PtlTest1/ReqTest1": {
+            "type": "Interface",
+            "properties": [
+                {
+                    "id": 0,
+                    "name": "name",
+                    "type": {
+                        "type": "String"
+                    }
+                }
+            ]
+        },
+        "a/b/c/PtlTest1/ResTest1": {
             "type": "Interface",
             "properties": [
                 {

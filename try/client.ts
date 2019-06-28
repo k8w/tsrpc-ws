@@ -16,20 +16,27 @@ async function main() {
         }
     });
 
-    client.connect().catch(() => { });
+    await client.connect().catch(() => { });
 
-    setInterval(async () => {
-        try {
-            let res = await client.callApi('Test', { name: '小明同学' });
-            console.log('收到回复', res);
-        }
-        catch (e) {
-            if (e.info === 'NETWORK_ERR') {
-                return;
-            }
-            console.log('API错误', e)
-        }
-    }, 1000);
+    let res = await client.callApi('Test', { name: '小明同学' }).catch(e => e);
+    console.log('Test Res', res);
+
+    res = await client.callApi('a/b/c/Test1', { name: '小明同学' });
+    console.log('Test1 Res', res);
+
+
+    // setInterval(async () => {
+    //     try {
+    //         let res = await client.callApi('Test', { name: '小明同学' });
+    //         console.log('收到回复', res);
+    //     }
+    //     catch (e) {
+    //         if (e.info === 'NETWORK_ERR') {
+    //             return;
+    //         }
+    //         console.log('API错误', e)
+    //     }
+    // }, 1000);
 
     // client.listenMsg('Chat', msg => {
     //     console.log('收到MSG', msg);

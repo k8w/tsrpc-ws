@@ -31,7 +31,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
     private readonly _id2Conn: { [connId: number]: ActiveConnection<ServerCustomType> | undefined } = {};
 
     // 配置及其衍生项
-    private readonly _options: ServerOptions;
+    private readonly _options: ServerOptions<ServerCustomType>;
     readonly proto: ServiceProto;
     private _tsbuffer: TSBuffer;
     private _serviceMap: ServiceMap;
@@ -43,7 +43,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
     // 多个Handler将异步并行执行
     private _msgHandlers = new HandlerManager;
 
-    constructor(options: Pick<ServerOptions, 'proto'> & Partial<ServerOptions>) {
+    constructor(options: Pick<ServerOptions, 'proto'> & Partial<ServerOptions<ServerCustomType>>) {
         this._options = Object.assign({}, defaultServerOptions, options);
 
         if (typeof (this._options.proto) === 'string') {
@@ -64,7 +64,9 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
 
         // 自动注册API
         if (options.apiPath) {
-            // TODO
+            console.log('Start auto implement apis...');
+            let op = this._autoImplementApis(options.apiPath);
+            console.log(`√ Finished: ${op.succ.length} succ, ${op.fail.length} fail`)
         }
     }
 
@@ -121,7 +123,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
             server: this,
             ws: ws,
             request: req,
-            session: this._options.defaultSessionData,
+            session: this._options.defaultSession,
             tsbuffer: this._tsbuffer,
             serviceMap: this._serviceMap,
             onClose: this._onClientClose,
@@ -309,6 +311,46 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
             activeConn: this._conns.length
         }
     }
+
+    private _autoImplementApis(apiPath: string): { succ: string[], fail: string[] } {
+        let apiServices = Object.values(this._serviceMap.apiName2Service) as ApiServiceDef[];
+        let output: { succ: string[], fail: string[] } = { succ: [], fail: [] };
+
+        for (let svc of apiServices) {
+            //get matched Api
+            let apiHandler: Function | undefined;
+
+            // get api last name
+            let match = svc.name.match(/^(.+\/)*(.+)$/);
+            if (!match) {
+                console.warn('Invalid apiName: ' + svc.name);
+                output.fail.push(svc.name);
+                continue;
+            }
+            let handlerPath = match[1] || '';
+            let handlerName = match[2];
+
+            // try import
+            try {
+                let module = require(path.resolve(apiPath, handlerPath, 'Api' + handlerName));
+                // 优先ApiName同名 否则使用default
+                apiHandler = module['Api' + handlerName] || module['default'];
+            }
+            catch{ }
+
+            if (!apiHandler) {
+                output.fail.push(svc.name);
+                console.warn('Auto implement api fail: ' + svc.name);
+                continue;
+            }
+
+            this.implementApi(svc.name, apiHandler as any);
+            console.log('Auto implement api succ: ' + svc.name);
+            output.succ.push(svc.name);
+        }
+
+        return output;
+    }
 }
 
 const defaultServerOptions: ServerOptions = {
@@ -317,7 +359,7 @@ const defaultServerOptions: ServerOptions = {
         services: [],
         types: {}
     },
-    defaultSessionData: {}
+    defaultSession: {}
 }
 
 // event => event data
@@ -327,11 +369,11 @@ export interface ServerEventData {
     resError: any
 }
 
-export type ServerOptions = {
+export type ServerOptions<ServerCustomType extends BaseServerCustomType = any> = {
     port: number;
     proto: string | ServiceProto;
     apiPath?: string;
-    defaultSessionData: any;    // TODO
+    defaultSession: ServerCustomType['session'];
 };
 
 export type ApiHandler<
