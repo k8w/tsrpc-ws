@@ -118,7 +118,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
         }
 
         // Create Active Connection
-        let conn = new ActiveConnection({
+        let conn = ActiveConnection.getFromPool({
             connId: connId,
             server: this,
             ws: ws,
@@ -163,6 +163,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
     private _onClientClose(conn: ActiveConnection<ServerCustomType>, code: number, reason: string) {
         this._conns.removeOne(v => v.connId === conn.connId);
         this._id2Conn[conn.connId] = undefined;
+        ActiveConnection.putIntoPool(conn);
         console.log('[CLIENT_CLOSE]', `IP=${conn.ip} ConnID=${conn.connId} Code=${code} ${reason ? `Reason=${reason} ` : ''}ActiveConn=${this._conns.length}`);
     }
 

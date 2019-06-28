@@ -20,7 +20,7 @@ export class Client<ClientCustomType extends BaseClientCustomType> {
 
     constructor(options: Pick<ClientOptions, 'server' | 'proto'> & Partial<ClientOptions>) {
         this._options = Object.assign({}, defaultClientOptions, options);
-        this._transporter = new Transporter('client', {
+        this._transporter = Transporter.getFromPool('client', {
             proto: this._options.proto,
             onRecvData: this._onRecvData
         });
@@ -92,7 +92,7 @@ export class Client<ClientCustomType extends BaseClientCustomType> {
         this._ws.close();
     }
 
-    private _onRecvData = (recvData: RecvData) => {       
+    private _onRecvData = (recvData: RecvData) => {
         // 文字消息，通常用于调试，直接打印
         if (recvData.type === 'text') {
             console.debug('Received Text:', recvData.data);

@@ -5,6 +5,16 @@ import { TSBuffer } from 'tsbuffer';
 import { Counter } from './Counter';
 import { TSRPCError } from './TSRPCError';
 
+export interface CreateTransporterOptions {
+    ws?: WebSocket,
+    proto: ServiceProto,
+    onRecvData: Transporter['onRecvData'],
+
+    // Server 传入 可以复用的
+    tsbuffer?: TSBuffer,
+    serviceMap?: ServiceMap
+}
+
 export class Transporter {
 
     private static _transportCoder?: TSBuffer;
@@ -79,35 +89,58 @@ export class Transporter {
     readonly type: 'client' | 'server';
 
     private _ws?: WebSocket;
-    private _tsbuffer: TSBuffer;
-    private _serviceMap: ServiceMap;
+    private _tsbuffer!: TSBuffer;
+    private _serviceMap!: ServiceMap;
+    onRecvData!: (data: RecvData) => void;
 
     private _apiReqSnCounter!: Counter;
 
-    onRecvData: (data: RecvData) => void;
 
-    constructor(type: Transporter['type'], options: {
-        ws?: WebSocket,
-        proto: ServiceProto,
-        onRecvData: Transporter['onRecvData'],
-
-        // Server 传入 可以复用的
-        tsbuffer?: TSBuffer,
-        serviceMap?: ServiceMap
-    }) {
+    private constructor(type: Transporter['type'], options: CreateTransporterOptions) {
         this.type = type;
-        this._tsbuffer = options.tsbuffer || new TSBuffer(options.proto.types);
-        this.onRecvData = options.onRecvData;
-        this._serviceMap = options.serviceMap || Transporter.getServiceMap(options.proto);
-
         if (this.type === 'client') {
             this._apiReqSnCounter = new Counter();
         }
+    }
 
-        this.resetWs(options.ws);
+    private static _pool: Transporter[] = [];
+    static getFromPool(type: 'client' | 'server', options: CreateTransporterOptions): Transporter {
+        let item = this._pool.pop();
+        if (!item) {
+            item = new Transporter(type, options);
+        }
+
+        // RESET
+        item._tsbuffer = options.tsbuffer || new TSBuffer(options.proto.types);
+        item._serviceMap = options.serviceMap || Transporter.getServiceMap(options.proto);
+        item.onRecvData = options.onRecvData;
+
+        if (item.type === 'client') {
+            item._apiReqSnCounter.reset();
+        }
+
+        item.resetWs(options.ws);
+
+        return item;
+    }
+    static putIntoPool(item: Transporter) {
+        if (this._pool.indexOf(item) > -1) {
+            return;
+        }
+
+        item._tsbuffer = null as any;
+        item.onRecvData = null as any;
+        item._serviceMap = null as any;
+        item.resetWs(undefined);
+        this._pool.push(item);
     }
 
     resetWs(ws: WebSocket | undefined) {
+        // 清空上一次的
+        if (this._ws) {
+            this._ws.onmessage = undefined as any;
+        }
+
         this._ws = ws;
         if (this._ws) {
             this._ws.onmessage = e => { this._onWsMessage(e.data) };
@@ -353,9 +386,6 @@ export class Transporter {
         }
     }
 
-    dispose() {
-        // TODO
-    }
 }
 
 export type RecvTextData = {

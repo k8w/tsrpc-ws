@@ -11,33 +11,62 @@ import { TSBuffer } from "tsbuffer";
  */
 export class ActiveConnection<ServerCustomType extends BaseServerCustomType = any> {
 
-    readonly options: ActiveConnectionOptions<ServerCustomType>;
-    readonly server: Server<ServerCustomType>;
-    readonly request: http.IncomingMessage;
-    readonly connId: number;
-    readonly ip: string;
-    readonly session: ServerCustomType['session'];
-    readonly logger: Logger;
+    private _options!: ActiveConnectionOptions<ServerCustomType>;
+    server!: Server<ServerCustomType>;
+    private _request!: http.IncomingMessage;
+    connId!: number;
+    ip!: string;
+    session!: ServerCustomType['session'];
+    logger!: Logger;
 
-    private _ws: WebSocket;
-    private _transporter: Transporter;
+    private _ws!: WebSocket;
+    private _transporter!: Transporter;
 
-    constructor(options: ActiveConnectionOptions<ServerCustomType>) {
-        this.options = options;
-        this.server = options.server;
-        this._ws = options.ws;
-        this.request = options.request;
-        this.ip = this._getClientIp(options.request);
-        this.connId = options.connId;
-        this.session = options.session;
-        this.logger = new Logger(() => [`Conn${this.connId}(${this.ip})`])
-        this._transporter = new Transporter('server', {
-            ws: this._ws,
-            proto: this.server.proto,
-            onRecvData: this._onRecvData,
+    private constructor() { }
+
+    private static _pool: ActiveConnection<any>[] = [];
+    static getFromPool<ServerCustomType extends BaseServerCustomType>(options: ActiveConnectionOptions<ServerCustomType>) {
+        let item = this._pool.pop() as ActiveConnection<ServerCustomType>;
+        if (!item) {
+            item = new ActiveConnection<ServerCustomType>();
+        }
+
+        // RESET
+        item._options = options;
+        item.server = options.server;
+        item._ws = options.ws;
+        item._request = options.request;
+        item.ip = item._getClientIp(options.request);
+        item.connId = options.connId;
+        item.session = options.session;
+        item.logger = new Logger(() => [`Conn${item.connId}(${item.ip})`])
+        item._transporter = Transporter.getFromPool('server', {
+            ws: item._ws,
+            proto: item.server.proto,
+            onRecvData: item._onRecvData,
             tsbuffer: options.tsbuffer,
             serviceMap: options.serviceMap
         })
+
+        return item;
+    }
+    static putIntoPool(item: ActiveConnection<any>) {
+        if (this._pool.indexOf(item) > -1) {
+            return;
+        }
+
+        // DISPOSE
+        item._options =
+            item.server =
+            item._ws =
+            item._request =
+            item.ip =
+            item.connId =
+            item.session =
+            item.logger =
+            item._transporter = undefined as any;
+        
+        this._pool.push(item);
     }
 
     private _getClientIp(req: http.IncomingMessage) {
@@ -95,7 +124,7 @@ export class ActiveConnection<ServerCustomType extends BaseServerCustomType = an
     }
 
     private _onRecvData = (data: RecvData) => {
-        this.options.onRecvData(this, data);
+        this._options.onRecvData(this, data);
     }
 }
 

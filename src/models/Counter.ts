@@ -10,6 +10,11 @@ export class Counter {
         this._last = max;
     }
 
+    /** 复位：从新从0开始计数 */
+    reset() {
+        this._last = this._max;
+    }
+
     getNext() {
         return this._last >= this._max ? (this._last = this._min) : ++this._last;
     }
