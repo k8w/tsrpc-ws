@@ -169,10 +169,12 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
         console.log('[CLIENT_CLOSE]', `IP=${conn.ip} ConnID=${conn.connId} Code=${code} ${reason ? `Reason=${reason} ` : ''}ActiveConn=${this._conns.length}`);
 
         // 优雅地停止
-        if (this._rsStopping) {
-            this._wsServer && this._wsServer.close();
-            this._rsStopping();
-            this._rsStopping = undefined;
+        if (this._rsStopping && this._conns.length === 0 && !this._isServerWillStopExecuting) {
+            this._wsServer && this._wsServer.close(e => {
+                this._rsStopping = this._rjStopping = undefined;
+                this._status = 'closed';
+                e ? this._rjStopping!(e) : this._rsStopping!();
+            });
         }
     }
 
@@ -279,14 +281,16 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
         }
     }
 
+    private _isServerWillStopExecuting?: any;
     private _rsStopping?: () => void;
+    private _rjStopping?: (e: any) => void;
     async stop(immediately: boolean = false): Promise<void> {
         if (!this._wsServer || this._status === 'closed') {
             return;
         }
 
         this._status = 'closing';
-        let output = new Promise<void>(rs => {
+        let output = new Promise<void>(async (rs, rj) => {
             if (!this._wsServer) {
                 throw new Error('Server has not been started')
             }
@@ -297,8 +301,26 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
             else {
                 // 优雅地停止
                 this._rsStopping = rs;
-                for (let conn of this._conns) {
-                    conn.close();
+                this._rjStopping = rj;
+                this._isServerWillStopExecuting = undefined;
+
+                if (this._options.onServerWillStop) {
+                    this._isServerWillStopExecuting = this._options.onServerWillStop(this._conns);
+                    await this._isServerWillStopExecuting;
+                    this._isServerWillStopExecuting = undefined;
+                }
+
+                if (this._conns.length) {
+                    for (let conn of this._conns) {
+                        conn.close();
+                    }
+                }
+                else {
+                    this._wsServer && this._wsServer.close(e => {
+                        this._rsStopping = this._rjStopping = undefined;
+                        this._status = 'closed';
+                        e ? rj(e) : rs();
+                    });
                 }
             }
         });
@@ -429,6 +451,7 @@ export type ServerOptions<ServerCustomType extends BaseServerCustomType = any> =
     proto: string | ServiceProto;
     apiPath?: string;
     defaultSession: ServerCustomType['session'];
+    onServerWillStop?: (conns: ActiveConnection[]) => (Promise<void> | void);
 };
 
 export type ApiHandler<

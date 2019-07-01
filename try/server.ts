@@ -5,7 +5,19 @@ import * as path from "path";
 
 let server = new TSRPCServer<ServiceType & { session: any }>({
     proto: serviceProto,
-    apiPath: path.resolve(__dirname, 'api')
+    apiPath: path.resolve(__dirname, 'api'),
+
+    onServerWillStop: conns => new Promise(rs => {
+        console.log('onServerWillStop');
+        conns.forEach(v => { console.log(v.connId) });
+
+        setTimeout(() => {
+            console.log('onServerWillStop 2');
+            conns.forEach(v => { v.close() });
+        }, 2000)
+
+        setTimeout(rs, 8000);
+    })
 });
 
 // server.implementApi('Test', call => {
