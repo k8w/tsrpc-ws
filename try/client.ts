@@ -1,8 +1,8 @@
-import { TSRPCClient } from "..";
+import { TSRPCClientWS } from "..";
 import { serviceProto, ServiceType } from './proto/serviceProto';
 
 async function main() {
-    let client = new TSRPCClient<ServiceType>({
+    let client = new TSRPCClientWS<ServiceType>({
         server: 'ws://127.0.0.1:3000',
         proto: serviceProto,
         onStatusChange: v => {

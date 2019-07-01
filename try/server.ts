@@ -1,9 +1,9 @@
-import { TSRPCServer } from "..";
+import { TSRPCServerWS } from "..";
 import { serviceProto, ServiceType } from './proto/serviceProto';
 import { TSRPCError } from '../src/models/TSRPCError';
 import * as path from "path";
 
-let server = new TSRPCServer<ServiceType & { session: any }>({
+let server = new TSRPCServerWS<ServiceType & { session: any }>({
     proto: serviceProto,
     apiPath: path.resolve(__dirname, 'api'),
 
