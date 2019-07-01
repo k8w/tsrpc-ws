@@ -42,7 +42,7 @@ server.listenMsg('Chat', call => {
 server.start();
 
 setInterval(() => {
-    server.sendMsg(['1'], 'Chat', {
+    server.sendMsg(['1', '2'], 'Chat', {
         channel: 123,
         userName: 'System',
         content: 'Lalala',
