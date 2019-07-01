@@ -48,6 +48,10 @@ export class ActiveConnection<ServerCustomType extends BaseServerCustomType = an
             serviceMap: options.serviceMap
         })
 
+        // Init WS
+        options.ws.onclose = e => { item._onClose(e.code, e.reason) };
+        options.ws.onerror = e => { item._onError(e.error) };
+
         return item;
     }
     static putIntoPool(item: ActiveConnection<any>) {
@@ -129,6 +133,24 @@ export class ActiveConnection<ServerCustomType extends BaseServerCustomType = an
 
     private _onRecvData = (data: RecvData) => {
         this._options.onRecvData(this, data);
+    }
+
+    close() {
+        if (!this._ws) {
+            return;
+        }
+
+        // 已连接 Close之
+        this._ws.close(1000, 'Server closed');
+    }
+
+    private _onClose(code: number, reason: string) {
+        this._ws.onopen = this._ws.onclose = this._ws.onmessage = this._ws.onerror = undefined as any;
+        this._options.onClose && this._options.onClose(this, code, reason);
+    }
+
+    private _onError(e: Error) {
+        console.warn('[CLIENT_ERR]', e);
     }
 }
 

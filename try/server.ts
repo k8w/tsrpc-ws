@@ -49,3 +49,11 @@ setInterval(() => {
         time: Date.now()
     }).catch(e => { })
 }, 1000)
+
+// 优雅的停止
+setTimeout(async () => {
+    console.time('stop')
+    await server.stop();
+    console.timeEnd('stop');
+    process.exit();
+}, 3000);
