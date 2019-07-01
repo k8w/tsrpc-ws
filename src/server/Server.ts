@@ -324,7 +324,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
                 conn.sendRaw(transportData)
             }
             else {
-                console.error('SendMsg failed, Invalid connId: ' + v)
+                console.error('SendMsg failed, invalid connId: ' + v)
             }
         }))
     };
