@@ -40,3 +40,12 @@ server.listenMsg('Chat', call => {
 })
 
 server.start();
+
+setInterval(() => {
+    server.sendMsg(['1'], 'Chat', {
+        channel: 123,
+        userName: 'System',
+        content: 'Lalala',
+        time: Date.now()
+    }).catch(e => { })
+}, 1000)

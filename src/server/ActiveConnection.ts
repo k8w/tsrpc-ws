@@ -65,7 +65,7 @@ export class ActiveConnection<ServerCustomType extends BaseServerCustomType = an
             item.session =
             item.logger =
             item._transporter = undefined as any;
-        
+
         this._pool.push(item);
     }
 
@@ -120,7 +120,11 @@ export class ActiveConnection<ServerCustomType extends BaseServerCustomType = an
     }
 
     sendRaw(data: WebSocket.Data) {
-        this._ws.send(data);
+        return new Promise((rs, rj) => {
+            this._ws!.send(data, err => {
+                err ? rj(err) : rs();
+            });
+        })
     }
 
     private _onRecvData = (data: RecvData) => {

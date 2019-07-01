@@ -12,6 +12,7 @@ import { Logger } from './Logger';
 import { ServiceMap, Transporter, RecvData } from '../models/Transporter';
 import { HandlerManager } from '../models/HandlerManager';
 import { TSRPCError } from '../models/TSRPCError';
+import { ServerOutputData } from '../proto/TransportData';
 
 export interface BaseServerCustomType {
     req: any,
@@ -28,7 +29,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
 
     private _wsServer?: WebSocketServer;
     private readonly _conns: ActiveConnection<ServerCustomType>[] = [];
-    private readonly _id2Conn: { [connId: number]: ActiveConnection<ServerCustomType> | undefined } = {};
+    private readonly _id2Conn: { [connId: string]: ActiveConnection<ServerCustomType> | undefined } = {};
 
     // 配置及其衍生项
     private readonly _options: ServerOptions<ServerCustomType>;
@@ -303,8 +304,29 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
     };
 
     // Send Msg
-    sendMsg(connId: string | string[], msgId: string) {
-        // TODO
+    sendMsg<T extends keyof ServerCustomType['msg']>(connIds: string[], msgName: T, msg: ServerCustomType['msg'][T]): Promise<void[]> {
+        // GetService
+        let service = this._serviceMap.msgName2Service[msgName as string];
+        if (!service) {
+            throw new Error('Invalid msg name: ' + msgName)
+        }
+
+        // Encode
+        let buf = this._tsbuffer.encode(msg, service.msg);
+
+        // Send Data
+        let data: ServerOutputData = [service.id, buf];
+        let transportData = Transporter.transportCoder.encode(data, 'ServerOutputData');
+
+        return Promise.all(connIds.map(v => {
+            let conn = this._id2Conn[v];
+            if (conn) {
+                conn.sendRaw(transportData)
+            }
+            else {
+                console.error('SendMsg failed, Invalid connId: ' + v)
+            }
+        }))
     };
 
     get status() {
