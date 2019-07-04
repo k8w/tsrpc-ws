@@ -1,11 +1,12 @@
 {
-  "name": "tsrpc-ws",
-  "version": "0.1.0",
-  "description": "TSRPC WebSocket Version",
+  "name": "tsrpc",
+  "version": "2.0.0",
+  "description": "TSRPC 2.x (both support HTTP and WebSocket)",
   "main": "index.js",
   "scripts": {
     "test": "mocha",
-    "build": "rm -rf dist && tsc -d && cp package.json LICENSE README.md dist/"
+    "build": "rm -rf dist && tsc -d && cp package.json LICENSE README.md dist/",
+    "bp": "npm version patch && npm run build && cd dist && npm publish --tag next & cd .."
   },
   "repository": {
     "type": "git",

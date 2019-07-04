@@ -90,20 +90,32 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
      * @param port 要监听的端口号，不填写则使用`ServerOptions`中的
      * @returns 成功监听的端口号
      */
-    async start(port?: number): Promise<number> {
+    async start() {
+        await Promise.all([
+            this._options.wsPort && this._startWs(),
+            this._options.httpPort && this._startHttp()
+        ])
+    }
+
+    private async _startWs() {
+        if (!this._options.wsPort) {
+            console.warn('Start WS failed: wsPort is undefined');
+            return;
+        }
+
         if (this._wsServer) {
-            throw new Error('Server has been started already');
+            console.warn('Server has been started already');
+            return;
         }
 
         this._status = 'opening';
-        port = port || this._options.port;
         return new Promise(rs => {
             this._wsServer = new WebSocketServer({
-                port: port
+                port: this._options.wsPort
             }, () => {
-                console.log(`[SRV_START] Server started at ${port}...`);
+                console.log(`[WS_START] WS Server started at ${this._options.wsPort}...`);
                 this._status = 'open';
-                rs(port!);
+                rs(this._options.wsPort!);
             });
 
             this._wsServer.on('connection', this._onClientConnect);
@@ -111,6 +123,15 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
                 console.error('[SVR_ERR]', e);
             });
         })
+    }
+
+    private async _startHttp() {
+        if (!this._options.httpPort) {
+            console.warn('Start HTTP failed: httpPort is undefined');
+            return;
+        }
+
+        // TODO HTTP
     }
 
     private _onClientConnect = (ws: WebSocket, req: http.IncomingMessage) => {
@@ -186,6 +207,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
             conn: conn,
             data: reqBody,
             logger: new Logger(() => [`API#${sn}`, service.name], conn.logger),
+            getSession: async () => conn.session,
             succ: (resBody) => {
                 conn.sendApiSucc(call, resBody);
             },
@@ -253,6 +275,7 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
             conn: conn,
             service: service,
             data: msgBody,
+            getSession: async () => conn.session,
             logger: new Logger(() => ['MSG', service.name], conn.logger)
         }
 
@@ -431,7 +454,6 @@ export class Server<ServerCustomType extends BaseServerCustomType = any> {
 export type ServerStatus = 'opening' | 'open' | 'closing' | 'closed';
 
 const defaultServerOptions: ServerOptions = {
-    port: 3000,
     proto: {
         services: [],
         types: {}
@@ -447,7 +469,10 @@ export interface ServerEventData {
 }
 
 export type ServerOptions<ServerCustomType extends BaseServerCustomType = any> = {
-    port: number;
+    /** HTTP短连接端口 无则不监听 */
+    httpPort?: number;
+    /** WebSocket长连接端口 无则不监听 */
+    wsPort?: number;
     proto: string | ServiceProto;
     apiPath?: string;
     defaultSession: ServerCustomType['session'];

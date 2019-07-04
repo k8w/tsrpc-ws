@@ -5,6 +5,7 @@ import { BaseServerCustomType, Server } from './Server';
 export interface BaseCall<ServerCustomType extends BaseServerCustomType> {
     conn: ActiveConnection<ServerCustomType>;
     logger: Logger;
+    getSession: () => Promise<ServerCustomType['session']>;
 }
 
 export interface ApiCall<Req = any, Res = any, ServerCustomType extends BaseServerCustomType = any> extends BaseCall<ServerCustomType> {
