@@ -1,6 +1,6 @@
 import { MsgChat } from './MsgChat';
 import { ReqTest, ResTest } from './PtlTest';
-import { ServiceProto } from '../../src/proto/ServiceProto';
+import { TSRPCServiceProto } from '../../index';
 import { ReqTest1, ResTest1 } from './a/b/c/PtlTest1';
 
 export interface ServiceType {
@@ -18,7 +18,7 @@ export interface ServiceType {
     }
 }
 
-export const serviceProto: ServiceProto = {
+export const serviceProto: TSRPCServiceProto = {
     "services": [
         {
             id: 0,
