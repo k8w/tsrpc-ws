@@ -42,8 +42,8 @@ server.listenMsg('Chat', call => {
     if (Math.random() > 0.5) {
         call.conn.sendMsg('Chat', {
             channel: call.data.channel,
-            userName: '系统',
-            content: '收到！',
+            userName: 'Reply',
+            content: 'R-' + call.data.content,
             time: Date.now()
         })
     }
@@ -54,19 +54,19 @@ server.listenMsg('Chat', call => {
 
 server.start();
 
-setInterval(() => {
-    server.sendMsg(['1', '2'], 'Chat', {
-        channel: 123,
-        userName: 'System',
-        content: 'Lalala',
-        time: Date.now()
-    }).catch(e => { })
-}, 1000)
+// setInterval(() => {
+//     server.sendMsg(['1', '2'], 'Chat', {
+//         channel: 123,
+//         userName: 'System',
+//         content: 'Lalala',
+//         time: Date.now()
+//     }).catch(e => { })
+// }, 1000)
 
 // 优雅的停止
-setTimeout(async () => {
-    console.time('stop')
-    await server.stop();
-    console.timeEnd('stop');
-    process.exit();
-}, 3000);
+// setTimeout(async () => {
+//     console.time('stop')
+//     await server.stop();
+//     console.timeEnd('stop');
+//     process.exit();
+// }, 3000);

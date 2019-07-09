@@ -1,54 +1,79 @@
-import { MsgChat } from './MsgChat';
-import { ReqTest, ResTest } from './PtlTest';
 import { TSRPCServiceProto } from '../../index';
-import { ReqTest1, ResTest1 } from './a/b/c/PtlTest1';
+import { ReqTest, ResTest } from './a/b/c/PtlTest'
+import { MsgChat } from './MsgChat'
+import { ReqTest as ReqTest_1, ResTest as ResTest_1 } from './PtlTest'
 
 export interface ServiceType {
     req: {
-        'Test': ReqTest,
-        'a/b/c/Test1': ReqTest1
+        "a/b/c/Test": ReqTest,
+        "Test": ReqTest_1
     },
     res: {
-        'Test': ResTest,
-        'a/b/c/Test1': ResTest1
-    }
+        "a/b/c/Test": ResTest,
+        "Test": ResTest_1
+    },
     msg: {
-        'Chat': MsgChat,
-        'xxx': string
+        "Chat": MsgChat        
     }
 }
 
 export const serviceProto: TSRPCServiceProto = {
     "services": [
         {
-            id: 0,
-            type: 'api',
-            name: 'Test',
-            req: 'PtlTest/ReqTest',
-            res: 'PtlTest/ResTest'
+            "id": 0,
+            "name": "a/b/c/Test",
+            "type": "api",
+            "req": "a/b/c/PtlTest/ReqTest",
+            "res": "a/b/c/PtlTest/ResTest"
         },
         {
-            id: 1,
-            type: 'msg',
-            name: 'Chat',
-            msg: 'MsgChat/MsgChat'
+            "id": 1,
+            "name": "Chat",
+            "type": "msg",
+            "msg": "MsgChat/MsgChat"
         },
         {
-            id: 2,
-            type: 'api',
-            name: 'a/b/c/Test1',
-            req: 'a/b/c/PtlTest1/ReqTest1',
-            res: 'a/b/c/PtlTest1/ResTest1'
-        },
-        {
-            id: 3,
-            type: 'api',
-            name: 'a/b/c/d/e',
-            req: 'xxx',
-            res: 'xxx'
-        },
+            "id": 2,
+            "name": "Test",
+            "type": "api",
+            "req": "PtlTest/ReqTest",
+            "res": "PtlTest/ResTest"
+        }
     ],
     "types": {
+        "a/b/c/PtlTest/ReqTest": {
+            "type": "Interface",
+            "properties": [
+                {
+                    "id": 0,
+                    "name": "name",
+                    "type": {
+                        "type": "String"
+                    }
+                }
+            ]
+        },
+        "a/b/c/PtlTest/ResTest": {
+            "type": "Interface",
+            "properties": [
+                {
+                    "id": 0,
+                    "name": "reply",
+                    "type": {
+                        "type": "String"
+                    }
+                },
+                {
+                    "id": 1,
+                    "name": "chat",
+                    "type": {
+                        "type": "Reference",
+                        "target": "MsgChat/MsgChat"
+                    },
+                    "optional": true
+                }
+            ]
+        },
         "MsgChat/MsgChat": {
             "type": "Interface",
             "properties": [
@@ -105,30 +130,6 @@ export const serviceProto: TSRPCServiceProto = {
                     }
                 }
             ]
-        },
-        "a/b/c/PtlTest1/ReqTest1": {
-            "type": "Interface",
-            "properties": [
-                {
-                    "id": 0,
-                    "name": "name",
-                    "type": {
-                        "type": "String"
-                    }
-                }
-            ]
-        },
-        "a/b/c/PtlTest1/ResTest1": {
-            "type": "Interface",
-            "properties": [
-                {
-                    "id": 0,
-                    "name": "reply",
-                    "type": {
-                        "type": "String"
-                    }
-                }
-            ]
         }
     }
-}
+};
