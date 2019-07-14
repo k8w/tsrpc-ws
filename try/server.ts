@@ -5,6 +5,7 @@ import * as path from "path";
 
 let server = new TSRPCServer<ServiceType & { session: any }>({
     wsPort: 3000,
+    httpPort: 3001,
     proto: serviceProto,
     apiPath: path.resolve(__dirname, 'api'),
 

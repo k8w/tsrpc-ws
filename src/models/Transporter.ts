@@ -3,7 +3,7 @@ import { MsgServiceDef, ApiServiceDef, ServiceProto, ServiceDef } from '../proto
 import { ServerInputData, ServerOutputData, ApiError } from '../proto/TransportData';
 import { TSBuffer } from 'tsbuffer';
 import { Counter } from './Counter';
-import { TSRPCError } from './TSRPCError';
+import { TsrpcError } from './TsrpcError';
 
 export interface CreateTransporterOptions {
     ws?: WebSocket,
@@ -17,74 +17,7 @@ export interface CreateTransporterOptions {
 
 export class Transporter {
 
-    private static _transportCoder?: TSBuffer;
-    static get transportCoder(): TSBuffer {
-        if (!this._transportCoder) {
-            this._transportCoder = new TSBuffer({
-                "ServerInputData": {
-                    "type": "Tuple",
-                    "elementTypes": [
-                        {
-                            "type": "Number",
-                            "scalarType": "uint"
-                        },
-                        {
-                            "type": "Buffer",
-                            "arrayType": "Uint8Array"
-                        },
-                        {
-                            "type": "Number",
-                            "scalarType": "uint"
-                        }
-                    ],
-                    "optionalStartIndex": 2
-                },
-                "ServerOutputData": {
-                    "type": "Tuple",
-                    "elementTypes": [
-                        {
-                            "type": "Number",
-                            "scalarType": "uint"
-                        },
-                        {
-                            "type": "Buffer",
-                            "arrayType": "Uint8Array"
-                        },
-                        {
-                            "type": "Number",
-                            "scalarType": "uint"
-                        },
-                        {
-                            "type": "Boolean"
-                        }
-                    ],
-                    "optionalStartIndex": 2
-                },
-                "ApiError": {
-                    "type": "Interface",
-                    "properties": [
-                        {
-                            "id": 0,
-                            "name": "message",
-                            "type": {
-                                "type": "String"
-                            }
-                        },
-                        {
-                            "id": 1,
-                            "name": "info",
-                            "type": {
-                                "type": "Any"
-                            },
-                            "optional": true
-                        }
-                    ]
-                }
-            })
-        }
-
-        return this._transportCoder;
-    }
+    
 
     readonly type: 'client' | 'server';
 
@@ -325,7 +258,7 @@ export class Transporter {
     private _sendTransportData(serviceId: number, buf: Uint8Array, sn: number, isSucc: boolean): void;
     private _sendTransportData(serviceId: number, buf: Uint8Array, sn?: number, isSucc?: boolean): void | Promise<void> {
         if (!this._ws || this._ws.readyState !== WebSocket.OPEN) {
-            throw new TSRPCError('Connection is not ready', 'NETWORK_ERROR')
+            throw new TsrpcError('Connection is not ready', 'NETWORK_ERROR')
         }
 
         // Server send ServerOutputData

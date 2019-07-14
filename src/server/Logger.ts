@@ -1,41 +1,45 @@
-import { callbackify } from "util";
+import { PoolItem, Pool } from '../models/Pool';
 
-export class Logger {
+export interface PrefixLoggerOptions {
+    logger: Logger
+    prefix: string | (() => string | string[]);
+}
 
-    prefix: () => string | string[];
-    parent?: Logger;
+export class PrefixLogger extends PoolItem<PrefixLoggerOptions> implements Logger {
 
-    constructor(prefix: () => string | string[], parent?: Logger) {
-        this.prefix = prefix;
-        this.parent = parent;
-    }
+    static pool = new Pool<PrefixLogger>(PrefixLogger);
 
     getPrefix(): string[] {
-        let prefix = this.prefix();
-        let output = Array.isArray(prefix) ? prefix : [prefix];
-        let parent = this.parent;
-        while (parent) {
-            output = parent.getPrefix().concat(output);
-            parent = parent.parent;
+        if (typeof this.options.prefix === 'string') {
+            return [this.options.prefix]
         }
 
+        let prefix = this.options.prefix();
+        let output = Array.isArray(prefix) ? prefix : [prefix];
         return output;
     }
 
     log(...args: any[]) {
-        console.log(...this.getPrefix().concat(args));
+        this.options.logger.log(...this.getPrefix().concat(args));
     }
 
     debug(...args: any[]) {
-        console.debug(...this.getPrefix().concat(args));
+        this.options.logger.debug(...this.getPrefix().concat(args));
     }
 
     warn(...args: any[]) {
-        console.warn(...this.getPrefix().concat(args));
+        this.options.logger.warn(...this.getPrefix().concat(args));
     }
 
     error(...args: any[]) {
-        console.error(...this.getPrefix().concat(args));
+        this.options.logger.error(...this.getPrefix().concat(args));
     }
 
+}
+
+export interface Logger {
+    debug(...args: any[]): void;
+    log(...args: any[]): void;
+    warn(...args: any[]): void;
+    error(...args: any[]): void;
 }

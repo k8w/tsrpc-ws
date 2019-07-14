@@ -1,4 +1,4 @@
-export class TSRPCError extends Error {
+export class TsrpcError extends Error {
 
     readonly info?: any;
 

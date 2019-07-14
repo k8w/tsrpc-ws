@@ -6,17 +6,7 @@ export class HandlerManager {
      */
     forEachHandler(key: string, ...args: any[]) {
         let handlers = this._handlers[key];
-        if (handlers) {
-            for (let handler of handlers) {
-                try {
-                    handler(...args);
-                }
-                catch (e) {
-                    console.error('[MSG_HANDLER_ERR]', key, e);
-                }
-            }
-        }
-        return handlers ? handlers.length : 0;
+        return handlers ? handlers.map(v => v(...args)) : [];
     }
 
     addHandler(key: string, handler: Function) {

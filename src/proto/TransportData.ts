@@ -8,10 +8,10 @@
 export type ServerInputData = [uint, Uint8Array, uint?];
 
 /**
- * ApiRes: [ ServiceID, Buffer, SN, isSucc ]
+ * ApiRes: [ ServiceID, ResBuffer, undefined, SN ] | [ ServiceID, undefined, ApiError, SN ]
  * Msg: [ ServiceID, Buffer ]
  */
-export type ServerOutputData = [uint, Uint8Array, uint?, boolean?];
+export type ServerOutputData = [uint, Uint8Array?, ApiError?, uint?];
 
 export interface ApiError {
     message: string,
